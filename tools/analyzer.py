@@ -131,8 +131,20 @@ def _get_llm_client() -> tuple[Any, Optional[str]]:
                 providers = data.get("providers", {}) or {}
                 if provider_name and provider_name in providers:
                     p = providers[provider_name]
-                    base_url = p.get("base_url", base_url)
-                    api_key = p.get("api_key", api_key)
+                    if p.get("api_key"):
+                        base_url = p.get("base_url", base_url)
+                        api_key = p.get("api_key", api_key)
+                # 如果主 provider 没 key，遍历所有 provider 找第一个有 key 的
+                if not api_key:
+                    preferred = ["deepseek", "openai", "openrouter", "anthropic", "gemini",
+                                 "siliconflow", "aihubmix", "opencode-go"]
+                    for name in preferred:
+                        p = providers.get(name, {})
+                        if p and p.get("api_key"):
+                            api_key = p["api_key"]
+                            base_url = p.get("base_url", base_url) or base_url
+                            logger.info(f"使用 LLM 提供商: {name}")
+                            break
         except Exception as e:
             logger.warning("读取 Hermes config 失败: %s", e)
 
@@ -149,7 +161,25 @@ def _get_llm_client() -> tuple[Any, Optional[str]]:
 
 def get_llm_model() -> str:
     """获取 LLM 模型名"""
-    return os.environ.get("STOCK_LLM_MODEL", os.environ.get("LLM_MODEL", "gpt-4o-mini"))
+    model = os.environ.get("STOCK_LLM_MODEL", os.environ.get("LLM_MODEL", ""))
+    if model:
+        return model
+    # Fallback to Hermes config
+    try:
+        hermes_home = os.environ.get("HERMES_HOME", os.path.expanduser("~/.hermes"))
+        config_path = os.path.join(hermes_home, "config.yaml")
+        if os.path.exists(config_path):
+            with open(config_path) as f:
+                data = yaml.safe_load(f) or {}
+            # Try deepseek first
+            providers = data.get("providers", {}) or {}
+            if "deepseek" in providers and providers["deepseek"].get("model"):
+                return providers["deepseek"]["model"]
+            # Fallback to default model
+            return data.get("model", {}).get("default", "gpt-4o-mini")
+    except Exception:
+        pass
+    return "gpt-4o-mini"
 
 
 def _sanitize_prompt_text(text: str) -> str:

@@ -1,11 +1,18 @@
-"""技术分析模块
+"""技术分析模块 — 带缓存封装
+
 从 daily_stock_analysis 抄逻辑：MA/MACD/RSI/Bollinger/趋势/量价分析
+通过 core.cache 缓存分析结果（基于 K 线数据，变化慢）
 """
+
 from __future__ import annotations
 
 import math
 from typing import Any
 
+from core.cache import get_cache, make_cache_key, TTL_TECHNICAL
+
+
+# ── 计算公式 ─────────────────────────────────────────────
 
 def calc_ma(records: list[dict], period: int) -> float:
     """计算N日均线"""
@@ -41,25 +48,17 @@ def calc_macd(closes: list[float]) -> dict[str, Any]:
     latest_dea = round(dea[-1], 3) if len(dea) == len(dif) else 0
     latest_bar = round(bar[-1], 3) if len(bar) == len(dif) else 0
 
-    # 状态判断
     if latest_dif > 0 and latest_bar > 0:
-        if latest_bar > abs(bar[-2] if len(bar) > 1 else 0):
-            status = "多头加强"
-        else:
-            status = "多头"
+        status = "多头加强" if len(bar) > 1 and latest_bar > abs(bar[-2]) else "多头"
     elif latest_dif > 0:
         status = "多头减弱"
     elif latest_dif < 0 and latest_bar < 0:
-        if abs(latest_bar) > abs(bar[-2] if len(bar) > 1 else 0):
-            status = "空头加强"
-        else:
-            status = "空头"
+        status = "空头加强" if len(bar) > 1 and abs(latest_bar) > abs(bar[-2]) else "空头"
     elif latest_dif < 0:
         status = "空头减弱"
     else:
         status = "中性"
 
-    # 金叉/死叉信号
     signal = ""
     if len(dif) >= 2 and len(dea) >= 2:
         if dif[-2] < dea[-2] and latest_dif >= latest_dea:
@@ -67,13 +66,8 @@ def calc_macd(closes: list[float]) -> dict[str, Any]:
         elif dif[-2] > dea[-2] and latest_dif <= latest_dea:
             signal = "死叉"
 
-    return {
-        "dif": latest_dif,
-        "dea": latest_dea,
-        "bar": latest_bar,
-        "status": status,
-        "signal": signal,
-    }
+    return {"dif": latest_dif, "dea": latest_dea, "bar": latest_bar,
+            "status": status, "signal": signal}
 
 
 def calc_rsi(closes: list[float], period: int = 14) -> dict[str, Any]:
@@ -98,15 +92,7 @@ def calc_rsi(closes: list[float], period: int = 14) -> dict[str, Any]:
         rs = avg_gain / avg_loss
         rsi = round(100 - 100 / (1 + rs), 2)
 
-    if rsi > 70:
-        status = "超买"
-    elif rsi > 50:
-        status = "强势"
-    elif rsi > 30:
-        status = "弱势"
-    else:
-        status = "超卖"
-
+    status = "超买" if rsi > 70 else "强势" if rsi > 50 else "弱势" if rsi > 30 else "超卖"
     return {"value": rsi, "status": status}
 
 
@@ -114,7 +100,8 @@ def calc_bollinger(records: list[dict], period: int = 20) -> dict[str, Any]:
     """布林带 (20, 2)"""
     closes = [r["close"] for r in records if r.get("close")]
     if len(closes) < period:
-        return {"upper": 0, "middle": 0, "lower": 0, "bandwidth": 0, "position": "数据不足"}
+        return {"upper": 0, "middle": 0, "lower": 0,
+                "bandwidth": 0, "position": "数据不足"}
 
     ma = sum(closes[-period:]) / period
     variance = sum((c - ma) ** 2 for c in closes[-period:]) / period
@@ -150,24 +137,14 @@ def calc_volume_ratio(records: list[dict]) -> float:
 
 
 def calc_bias(closes: list[float], ma: float) -> float:
-    """乖离率：与均线的偏离百分比"""
+    """乖离率"""
     if not closes or ma == 0:
         return 0.0
     return round((closes[-1] - ma) / ma * 100, 2)
 
 
 def calc_trend_status(records: list[dict]) -> dict[str, Any]:
-    """趋势状态判断
-    
-    逻辑从 daily_stock_analysis 抄：
-    - STRONG_BULL:   MA5 > MA10 > MA20，且间距扩大
-    - BULL:          MA5 > MA10 > MA20
-    - WEAK_BULL:     MA5 > MA10，但 MA10 < MA20
-    - CONSOLIDATION: 均线纠缠
-    - WEAK_BEAR:     MA5 < MA10，但 MA10 > MA20
-    - BEAR:          MA5 < MA10 < MA20
-    - STRONG_BEAR:   MA5 < MA10 < MA20，且间距扩大
-    """
+    """趋势状态判断"""
     closes = [r["close"] for r in records if r.get("close")]
     if len(closes) < 20:
         return {"status": "数据不足", "score": 50}
@@ -177,56 +154,51 @@ def calc_trend_status(records: list[dict]) -> dict[str, Any]:
     ma20 = calc_ma(records, 20)
     ma60 = calc_ma(records, 60)
 
-    # 获取更短的窗口来判断间距趋势
-    closes_last10 = closes[-10:] if len(closes) >= 10 else closes
-    ma5_short = calc_ma([{"close": c} for c in closes_last10[-5:]], 5)
-    ma10_short = calc_ma([{"close": c} for c in closes_last10], 10)
-    
-    # MA5 与 MA10 的间距趋势
     spread_5_10 = abs(ma5 - ma10)
     spread_10_20 = abs(ma10 - ma20)
 
     if ma5 > ma10 > ma20:
-        # 多头
         if spread_5_10 > 1.0 and spread_10_20 > 1.0:
-            status = "强势多头"
-            score = 85
+            status, score = "强势多头", 85
         else:
-            status = "多头排列"
-            score = 70
+            status, score = "多头排列", 70
     elif ma5 > ma10 and ma10 < ma20:
-        status = "弱势多头"
-        score = 55
+        status, score = "弱势多头", 55
     elif ma5 < ma10 and ma10 > ma20:
-        status = "弱势空头"
-        score = 45
+        status, score = "弱势空头", 45
     elif ma5 < ma10 < ma20:
         if spread_5_10 > 1.0 and spread_10_20 > 1.0:
-            status = "强势空头"
-            score = 15
+            status, score = "强势空头", 15
         else:
-            status = "空头排列"
-            score = 30
+            status, score = "空头排列", 30
     else:
-        # 均线纠缠
-        status = "震荡整理"
-        score = 50
+        status, score = "震荡整理", 50
 
-    return {
-        "status": status,
-        "score": score,
-        "ma5": ma5,
-        "ma10": ma10,
-        "ma20": ma20,
-        "ma60": ma60,
-    }
+    return {"status": status, "score": score,
+            "ma5": ma5, "ma10": ma10, "ma20": ma20, "ma60": ma60}
 
 
-def analyze(records: list[dict]) -> dict[str, Any]:
-    """完整技术分析"""
+def analyze(records: list[dict], code: str = "") -> dict[str, Any]:
+    """完整技术分析（带缓存）
+
+    基于K线数据计算所有技术指标，结果按（代码+记录摘要）缓存。
+
+    Args:
+        records: K线记录列表
+        code: 股票代码（用于缓存key区分）
+    """
     closes = [r["close"] for r in records if r.get("close")]
     if not closes:
         return {"error": "无数据"}
+
+    # 生成缓存键：用代码+最后日期+记录数区分
+    last_date = records[-1].get("date", "") if records else ""
+    first_date = records[0].get("date", "") if records else ""
+    cache_key = make_cache_key("technical", code, last_date, first_date, str(len(records)))
+    cache = get_cache()
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
 
     trend = calc_trend_status(records)
     macd = calc_macd(closes)
@@ -237,38 +209,31 @@ def analyze(records: list[dict]) -> dict[str, Any]:
     bias_ma5 = calc_bias(closes, trend.get("ma5", 0))
     bias_ma20 = calc_bias(closes, trend.get("ma20", 0))
 
-    # 检查支撑：价格在 MA5/MA10 附近
     price = closes[-1]
     ma5 = trend.get("ma5", 0)
     ma10 = trend.get("ma10", 0)
     support_ma5 = ma5 > 0 and abs(price - ma5) / ma5 < 0.01
     support_ma10 = ma10 > 0 and abs(price - ma10) / ma10 < 0.01
 
-    # 综合评分 (0-100)
     score = trend.get("score", 50)
-
-    # MACD 加分/扣分
     if macd.get("signal") == "金叉":
         score += 10
     elif macd.get("signal") == "死叉":
         score -= 10
 
-    # RSI 调整
     rsi_val = rsi.get("value", 50)
     if 40 <= rsi_val <= 60:
-        score += 5  # 中性区间加分
+        score += 5
     elif rsi_val > 80 or rsi_val < 20:
-        score -= 10  # 极端区间扣分
+        score -= 10
 
-    # 量比调整
     if 0.8 <= volume_ratio <= 1.5:
-        score += 5  # 温和放量
+        score += 5
     elif volume_ratio > 3:
-        score -= 5  # 异常放量
+        score -= 5
 
     score = max(0, min(100, score))
 
-    # 操作建议
     if score >= 75:
         advice = "买入"
     elif score >= 60:
@@ -280,22 +245,19 @@ def analyze(records: list[dict]) -> dict[str, Any]:
     else:
         advice = "卖出"
 
-    return {
+    result = {
         "trend": trend,
         "macd": macd,
         "rsi": rsi,
         "bollinger": bollinger,
         "volume_ratio": volume_ratio,
-        "bias": {
-            "ma5": bias_ma5,
-            "ma20": bias_ma20,
-        },
-        "support": {
-            "ma5": support_ma5,
-            "ma10": support_ma10,
-        },
+        "bias": {"ma5": bias_ma5, "ma20": bias_ma20},
+        "support": {"ma5": support_ma5, "ma10": support_ma10},
         "price": price,
         "score": score,
         "advice": advice,
         "analysis_count": len(records),
     }
+
+    cache.set(cache_key, result, TTL_TECHNICAL)
+    return result

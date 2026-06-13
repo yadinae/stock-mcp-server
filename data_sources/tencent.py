@@ -16,6 +16,7 @@ import httpx
 
 from core.cache import TTLCache, get_cache, make_cache_key
 from core.cache import TTL_REALTIME, TTL_KLINE, TTL_STOCK_INFO
+from core.health import get_health_tracker
 
 logger = logging.getLogger("stock-mcp.tencent")
 
@@ -81,12 +82,16 @@ def _fetch_tx_realtime(codes: list[str]) -> list[dict[str, Any]]:
     """从腾讯获取实时行情（内部实现，不缓存）"""
     tx_codes = [code_to_tx_symbol(c) for c in codes]
     url = f"https://qt.gtimg.cn/q={','.join(tx_codes)}"
+    health = get_health_tracker()
     try:
         resp = httpx.get(url, headers=TX_HEADERS, timeout=HTTP_TIMEOUT)
         resp.encoding = "gbk"
-        return _parse_tx_response(resp.text)
+        result = _parse_tx_response(resp.text)
+        health.record_success("tencent")
+        return result
     except Exception as e:
         logger.warning("Tencent API error: %s", e)
+        health.record_failure("tencent", str(e))
         return []
 
 
@@ -231,6 +236,7 @@ def get_kline(code: str, days: int = 60) -> dict[str, Any]:
         return cached
 
     tx_code = code_to_tx_symbol(code)
+    health = get_health_tracker()
     try:
         url = (
             f"https://web.ifzq.gtimg.cn/appstock/app/fqkline/"
@@ -248,9 +254,13 @@ def get_kline(code: str, days: int = 60) -> dict[str, Any]:
                 "source": "tencent",
             }
             cache.set(key, result, TTL_KLINE)
+            health.record_success("tencent")
             return result
+        else:
+            health.record_failure("tencent", "K线数据为空")
     except Exception as e:
         logger.warning("Tencent kline error: %s", e)
+        health.record_failure("tencent", str(e))
 
     # Fallback: mootdx
     try:

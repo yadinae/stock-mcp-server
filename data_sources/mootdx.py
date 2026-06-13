@@ -13,6 +13,7 @@ from datetime import datetime
 from typing import Any, Optional
 
 from core.cache import get_cache, make_cache_key, TTL_REALTIME, TTL_KLINE
+from core.health import get_health_tracker
 
 logger = logging.getLogger("stock-mcp.mootdx")
 
@@ -97,9 +98,11 @@ def get_realtime_quote(code: str) -> Optional[dict[str, Any]]:
             "source": "mootdx",
         }
         cache.set(key, result, TTL_REALTIME)
+        get_health_tracker().record_success("mootdx")
         return result
     except Exception as e:
         logger.warning("mootdx realtime error for %s: %s", code, e)
+        get_health_tracker().record_failure("mootdx", str(e))
         return None
 
 
@@ -213,11 +216,14 @@ def get_kline(code: str, days: int = 60) -> Optional[dict[str, Any]]:
                 "source": "mootdx",
             }
             cache.set(key, result, TTL_KLINE)
+            get_health_tracker().record_success("mootdx")
             return result
 
         logger.warning("mootdx kline empty for %s", code)
+        get_health_tracker().record_failure("mootdx", "K线数据为空")
         return None
 
     except Exception as e:
         logger.warning("mootdx kline error for %s: %s", code, e)
+        get_health_tracker().record_failure("mootdx", str(e))
         return None

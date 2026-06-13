@@ -178,6 +178,126 @@ def calc_trend_status(records: list[dict]) -> dict[str, Any]:
             "ma5": ma5, "ma10": ma10, "ma20": ma20, "ma60": ma60}
 
 
+# ── Ichimoku Kinko Hyo（一目均衡表）────────────────────
+
+
+def calc_ichimoku(records: list[dict]) -> dict[str, Any]:
+    """计算 Ichimoku 指标
+
+    需要至少 52 个交易日数据。
+    - Tenkan: (9日高+9日低)/2 — 短期趋势
+    - Kijun: (26日高+26日低)/2 — 中期趋势/支撑压力
+    - SpanA: (Tenkan+Kijun)/2 — 先行带A（未来26日）
+    - SpanB: (52日高+52日低)/2 — 先行带B（未来26日）
+    - Chiko: 当日收向后移26日 — 延迟线
+    """
+    highs = [r["high"] for r in records if r.get("high")]
+    lows = [r["low"] for r in records if r.get("low")]
+    closes = [r["close"] for r in records if r.get("close")]
+
+    if len(closes) < 52:
+        return {"status": "数据不足（需52个交易日）"}
+
+    tenkan = (max(highs[-9:]) + min(lows[-9:])) / 2
+    kijun = (max(highs[-26:]) + min(lows[-26:])) / 2
+    span_a = (tenkan + kijun) / 2
+    span_b = (max(highs[-52:]) + min(lows[-52:])) / 2
+    chiko = closes[-26] if len(closes) >= 26 else closes[0]
+
+    # 信号判断
+    price = closes[-1]
+    above_cloud = price > max(span_a, span_b)
+    below_cloud = price < min(span_a, span_b)
+    in_cloud = not above_cloud and not below_cloud
+
+    if above_cloud and tenkan > kijun:
+        trend = "多头（云上+金叉）"
+    elif above_cloud:
+        trend = "偏多（云上）"
+    elif below_cloud and tenkan < kijun:
+        trend = "空头（云下+死叉）"
+    elif below_cloud:
+        trend = "偏空（云下）"
+    else:
+        trend = "震荡（云中）"
+
+    return {
+        "tenkan": round(tenkan, 2),
+        "kijun": round(kijun, 2),
+        "span_a": round(span_a, 2),
+        "span_b": round(span_b, 2),
+        "chiko": round(chiko, 2),
+        "trend": trend,
+    }
+
+
+# ── K 线形态识别 ─────────────────────────────────────
+
+
+def identify_candle_patterns(records: list[dict]) -> list[dict]:
+    """识别常见 K 线形态
+
+    返回最近 10 根 K 线的形态识别结果，按时间正序。
+    形态列表: doji, hammer, shooting_star, engulfing
+    """
+    if len(records) < 3:
+        return []
+
+    patterns = []
+    for i in range(max(0, len(records) - 10), len(records)):
+        r = records[i]
+        open_p = r.get("open", 0)
+        close_p = r.get("close", 0)
+        high_p = r.get("high", 0)
+        low_p = r.get("low", 0)
+        body = abs(close_p - open_p)
+        upper_wick = high_p - max(open_p, close_p)
+        lower_wick = min(open_p, close_p) - low_p
+        total_range = high_p - low_p
+
+        if total_range == 0:
+            continue
+
+        found = []
+        bullish = close_p > open_p
+
+        # Doji: 实体极小（<5% 振幅）
+        if body / total_range < 0.05:
+            found.append("doji")
+
+        # Hammer: 下影线是实体的 2x+，上影线短（下跌后）
+        if not bullish and lower_wick > body * 2 and upper_wick < body * 0.5:
+            found.append("hammer")
+
+        # Shooting Star: 上影线是实体的 2x+，下影线短（上涨后）
+        if bullish and upper_wick > body * 2 and lower_wick < body * 0.5:
+            found.append("shooting_star")
+
+        # 吞没形态（与上一根比较）
+        if i > 0:
+            prev = records[i - 1]
+            prev_open = prev.get("open", 0)
+            prev_close = prev.get("close", 0)
+            prev_bullish = prev_close > prev_open
+
+            # Bullish Engulfing: 阴线后阳线完全覆盖前实体
+            if bullish and not prev_bullish:
+                if close_p > prev_open and open_p < prev_close:
+                    found.append("bullish_engulfing")
+
+            # Bearish Engulfing: 阳线后阴线完全覆盖前实体
+            if not bullish and prev_bullish:
+                if open_p > prev_close and close_p < prev_open:
+                    found.append("bearish_engulfing")
+
+        patterns.append({
+            "date": r.get("date", ""),
+            "patterns": found,
+        })
+
+    return patterns
+
+
 def analyze(records: list[dict], code: str = "") -> dict[str, Any]:
     """完整技术分析（带缓存）
 
@@ -245,6 +365,12 @@ def analyze(records: list[dict], code: str = "") -> dict[str, Any]:
     else:
         advice = "卖出"
 
+    # Ichimoku（需52个交易日）
+    ichimoku = calc_ichimoku(records)
+
+    # K线形态
+    candle_patterns = identify_candle_patterns(records)
+
     result = {
         "trend": trend,
         "macd": macd,
@@ -253,6 +379,8 @@ def analyze(records: list[dict], code: str = "") -> dict[str, Any]:
         "volume_ratio": volume_ratio,
         "bias": {"ma5": bias_ma5, "ma20": bias_ma20},
         "support": {"ma5": support_ma5, "ma10": support_ma10},
+        "ichimoku": ichimoku,
+        "candle_patterns": candle_patterns,
         "price": price,
         "score": score,
         "advice": advice,

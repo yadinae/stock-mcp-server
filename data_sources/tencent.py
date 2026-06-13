@@ -137,16 +137,32 @@ def _parse_tx_response(text: str) -> list[dict[str, Any]]:
 
 
 def get_realtime_quote(code: str) -> dict[str, Any]:
-    """获取单只A股实时行情（带缓存）"""
+    """获取单只A股实时行情（带缓存 + mootdx fallback）"""
     cache = get_cache()
     key = make_cache_key("tx_realtime", code)
     cached = cache.get(key)
     if cached is not None:
         return cached
 
+    # 主源：腾讯
     results = _fetch_tx_realtime([code])
-    result = results[0] if results else {"code": code, "error": "无法获取A股行情"}
-    cache.set(key, result, TTL_REALTIME)
+    if results and "error" not in results[0]:
+        result = results[0]
+        cache.set(key, result, TTL_REALTIME)
+        return result
+
+    # Fallback: mootdx
+    try:
+        from data_sources import mootdx as mootdx_source
+        md_result = mootdx_source.get_realtime_quote(code)
+        if md_result is not None and "error" not in md_result:
+            cache.set(key, md_result, TTL_REALTIME)
+            return md_result
+    except Exception as e:
+        logger.debug("mootdx fallback failed: %s", e)
+
+    result = {"code": code, "error": "无法获取A股行情"}
+    cache.set(key, result, 30)
     return result
 
 
@@ -207,7 +223,7 @@ def get_stock_info(code: str) -> dict[str, Any]:
 
 
 def get_kline(code: str, days: int = 60) -> dict[str, Any]:
-    """获取A股K线数据（带缓存）"""
+    """获取A股K线数据（带缓存 + mootdx fallback）"""
     cache = get_cache()
     key = make_cache_key("tx_kline", code, str(days))
     cached = cache.get(key)
@@ -233,18 +249,26 @@ def get_kline(code: str, days: int = 60) -> dict[str, Any]:
             }
             cache.set(key, result, TTL_KLINE)
             return result
-
-        # Fallback
-        result = {
-            "code": code, "records": [], "count": 0,
-            "note": "K线数据获取失败，可使用实时行情替代",
-        }
-        cache.set(key, result, 60)  # 失败时短缓存
-        return result
-
     except Exception as e:
         logger.warning("Tencent kline error: %s", e)
-        return {"code": code, "error": f"A股K线获取失败: {e}"}
+
+    # Fallback: mootdx
+    try:
+        from data_sources import mootdx as mootdx_source
+        md_result = mootdx_source.get_kline(code, days)
+        if md_result is not None and "error" not in md_result:
+            md_result["source"] = "mootdx"
+            cache.set(key, md_result, TTL_KLINE)
+            return md_result
+    except Exception as e:
+        logger.debug("mootdx kline fallback failed: %s", e)
+
+    result = {
+        "code": code, "records": [], "count": 0,
+        "note": "K线数据获取失败（腾讯+mootdx均不可用）",
+    }
+    cache.set(key, result, 60)
+    return result
 
 
 def _parse_kline_response(data: dict, tx_code: str) -> list[dict[str, Any]]:

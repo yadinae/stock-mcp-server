@@ -16,6 +16,8 @@ import { searchNews } from './tools/news';
 import { analyzeStock } from './tools/analyzer';
 import { analyzeTrapRisk } from './tools/trap';
 import { analyzeLhb } from './tools/lhb';
+import { fetchFinancials } from './tools/financials';
+import { computeDcf } from './tools/dcf';
 import { runBacktest, listStrategies } from './tools/backtest/index';
 import { getCache } from './cache';
 import { getHealthTracker } from './health';
@@ -292,6 +294,36 @@ const TOOLS: McpTool[] = [
       const ct = codeType(code);
       if (ct !== 'a') return { error: '龙虎榜数据仅支持A股' };
       return analyzeLhb(code);
+    },
+    price: 0,
+  },
+  {
+    name: 'fetch_financials',
+    description: '获取股票财务报表核心数据 — 营收、利润、EPS、FCF、负债、流通股本等\nArgs: code=股票代码\n数据源：东方财富 F10 主要财务指标，自动覆盖近5期',
+    inputSchema: { type: 'object', properties: { code: { type: 'string', description: '股票代码' } }, required: ['code'] },
+    handler: async (params) => {
+      const code = (params?.code || '').toString().trim();
+      if (!code) return { error: '股票代码不能为空' };
+      const fin = await fetchFinancials(code);
+      return fin;
+    },
+    price: 0,
+  },
+  {
+    name: 'dcf_valuation',
+    description: 'DCF 估值模型 — 两阶段自由现金流折现 + 5×5 敏感性表\nArgs: code=股票代码\n基于最新财报 FCF 和营收增长率，自动计算内含价值和安全边际\nA股默认参数：无风险利率2.5%，股权风险溢价6%，永续增长2.5%',
+    inputSchema: { type: 'object', properties: { code: { type: 'string', description: '股票代码' } }, required: ['code'] },
+    handler: async (params) => {
+      const code = (params?.code || '').toString().trim();
+      if (!code) return { error: '股票代码不能为空' };
+
+      const [fin, quote] = await Promise.all([
+        fetchFinancials(code),
+        tencent.getRealtimeQuote(code).catch(() => ({ price: 0 })),
+      ]);
+
+      const currentPrice = (quote as any)?.price || 0;
+      return computeDcf({ fin, currentPrice });
     },
     price: 0,
   },

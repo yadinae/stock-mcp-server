@@ -231,6 +231,89 @@ export interface LhbReport {
   recommendation: string;
 }
 
+// ───── Financial Data Types ─────
+
+export interface FinancialSnapshot {
+  code: string;
+  name: string;
+  report_date: string;       // 报告期
+  report_type: string;        // 年报/季报
+  notice_date: string;       // 公告日期
+  // Profitability
+  revenue: number;            // 营业收入
+  operating_profit: number;   // 营业利润
+  net_profit: number;         // 归母净利润
+  net_margin: number;         // 净利率 (%)
+  eps: number;                // 基本每股收益
+  bps: number;                // 每股净资产
+  // Cash Flow
+  operating_cashflow: number; // 经营活动现金流净额
+  fcff_back: number;          // 企业自由现金流(反向)
+  fcff_forward: number;       // 企业自由现金流(正向)
+  cashflow_per_share: number; // 每股经营现金流
+  // Balance Sheet
+  total_liabilities: number;  // 总负债
+  shares_outstanding: number; // 流通股本
+  // Growth (历史)
+  revenue_history: number[];  // 近年营收
+  profit_history: number[];   // 近年净利润
+  eps_history: number[];      // 近年EPS
+  dates: string[];            // 对应报告期
+}
+
+export interface DcfResult {
+  code: string;
+  name: string;
+  assumptions: {
+    stage1_growth: number;    // 高增阶段增长率
+    stage2_growth: number;    // 过渡阶段增长率
+    terminal_growth: number;  // 永续增长率
+    wacc: number;             // 加权平均资本成本
+    stage1_years: number;
+    stage2_years: number;
+    risk_free_rate: number;
+    beta: number;
+    equity_risk_premium: number;
+  };
+  enterprise_value: number;
+  net_debt: number;
+  equity_value: number;
+  intrinsic_per_share: number;
+  current_price: number;
+  safety_margin_pct: number;
+  verdict: string;            // 低估/合理/高估
+  sensitivity: Record<string, Record<string, number>>;  // 5x5 敏感性表
+  methodology_log: string[];
+}
+
+export interface CompsItem {
+  code: string;
+  name: string;
+  price: number;
+  pe_ttm: number;
+  pb: number;
+  revenue_growth?: number;
+  net_profit_growth?: number;
+  roe?: number;
+  market_cap?: number;
+}
+
+export interface CompsResult {
+  target_code: string;
+  target_name: string;
+  peers: CompsItem[];
+  percentile: {
+    pe_percentile: number;
+    pb_percentile: number;
+    ps_percentile?: number;
+  };
+  implied_price: {
+    pe_based: number;
+    pb_based: number;
+  };
+  valuation_verdict: string;
+}
+
 // ───── News Types ─────
 
 export interface NewsItem {

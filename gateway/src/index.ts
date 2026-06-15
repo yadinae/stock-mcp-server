@@ -20,6 +20,8 @@ import { fetchFinancials } from './tools/financials';
 import { computeDcf } from './tools/dcf';
 import { buildIcMemo } from './tools/icmemo';
 import { buildUnitEconomics } from './tools/unit_econ';
+import { buildValuePlan } from './tools/value_plan';
+import { buildDdChecklist } from './tools/dd_checklist';
 import { runBacktest, listStrategies } from './tools/backtest/index';
 import { initCache, getCacheStats, makeCacheKey, TTL_ST_RISK } from './cache';
 import { getHealthTracker } from './health';
@@ -374,6 +376,58 @@ const TOOLS: McpTool[] = [
       ]);
 
       return buildUnitEconomics(code, (quote as any)?.name || code, fin);
+    },
+    price: 0,
+  },
+
+  // ═══ UZI-Skill Port: Value Creation Plan ═══
+  {
+    name: 'value_creation_plan',
+    description: '价值创造计划 — 5年EBITDA Bridge: 营收增长/交叉销售/定价优化/供应链/营运资本\\nArgs: code=股票代码',
+    inputSchema: { type: 'object', properties: { code: { type: 'string', description: '股票代码' } }, required: ['code'] },
+    handler: async (params) => {
+      const code = (params?.code || '').toString().trim();
+      if (!code) return { error: '股票代码不能为空' };
+      const ct = codeType(code);
+      if (ct !== 'a') return { error: '该功能目前仅支持A股' };
+
+      const [fin, quote] = await Promise.all([
+        fetchFinancials(code),
+        tencent.getRealtimeQuote(code).catch(() => ({ price: 0, name: code })),
+      ]);
+
+      return buildValuePlan(code, (quote as any)?.name || code, fin);
+    },
+    price: 0,
+  },
+
+  // ═══ UZI-Skill Port: DD Checklist ═══
+  {
+    name: 'dd_checklist',
+    description: '尽调清单 — 5大工作流（财务/商业/法律/运营/市场）自动尽调\\nArgs: code=股票代码\\n基于现有数据自动标注完成状态，输出完整尽调清单和完成度',
+    inputSchema: { type: 'object', properties: { code: { type: 'string', description: '股票代码' } }, required: ['code'] },
+    handler: async (params) => {
+      const code = (params?.code || '').toString().trim();
+      if (!code) return { error: '股票代码不能为空' };
+
+      let fin = null, dcf = null, trap = null, risk = null;
+      try {
+        const q = await tencent.getRealtimeQuote(code);
+        fin = await fetchFinancials(code);
+
+        if (fin && fin.code !== '' && (q as any)?.price > 0) {
+          dcf = await computeDcf({ fin, currentPrice: (q as any).price });
+        }
+        trap = await analyzeTrapRisk({
+          code, name: (q as any)?.name || code,
+          price: (q as any)?.price, volume: (q as any)?.volume,
+          marketCap: (q as any)?.market_cap_raw,
+          klineRecords: [],
+        });
+        risk = await getStRisk(code, q as any);
+      } catch { /* best-effort */ }
+
+      return buildDdChecklist(code, code, fin, dcf, trap, risk);
     },
     price: 0,
   },

@@ -13,7 +13,9 @@ export async function getRealtimeQuote(code: string): Promise<RealtimeQuote> {
     cf: { cacheTtl: 15, cacheEverything: true },  // Edge cache 15s
   });
 
-  const text = await res.text();
+  const arrayBuffer = await res.arrayBuffer();
+  const decoder = new TextDecoder('gbk');
+  const text = decoder.decode(arrayBuffer);
   return parseTencentResponse(text, code);
 }
 

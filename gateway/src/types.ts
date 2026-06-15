@@ -162,6 +162,75 @@ export interface RiskReport {
   source: string;
 }
 
+// ───── Trap Detection Types ─────
+
+export interface TrapSignal {
+  name: string;
+  severity: 'low' | 'medium' | 'high';
+  detail: string;
+  evidence?: string;
+}
+
+export interface TrapReport {
+  code: string;
+  name: string;
+  trap_score: number;       // 0-100, higher = more dangerous
+  trap_level: string;       // 安全/注意/警惕/高度可疑
+  max_severity: string;
+  signals: TrapSignal[];
+  user_keyword_boost: number;
+  recommendation: string;
+}
+
+// ───── LHB (龙虎榜) Types ─────
+
+export interface LhbRecord {
+  date: string;
+  code: string;
+  name: string;
+  seat_name: string;        // 营业部名称
+  buy_amount: number;       // 买入金额（万）
+  sell_amount: number;      // 卖出金额（万）
+  net_amount: number;       // 净额（万）
+}
+
+export interface YouziInfo {
+  id: string;
+  name: string;
+  tier: string;
+  style: string;
+  premium: string;
+  seats: string[];
+}
+
+export interface YouziActivity {
+  youzi: YouziInfo;
+  total_buy: number;
+  total_sell: number;
+  net: number;
+  confidence: string;
+  verdict: string;         // "在射程"/"不在射程"/"反向预警"
+}
+
+export interface LhbSplit {
+  institutional_buy: number;
+  institutional_sell: number;
+  institutional_net: number;
+  youzi_buy: number;
+  youzi_sell: number;
+  youzi_net: number;
+}
+
+export interface LhbReport {
+  code: string;
+  name: string;
+  lhb_count_30d: number;
+  lhb_records: LhbRecord[];
+  matched_youzi: YouziActivity[];
+  inst_vs_youzi: LhbSplit;
+  recommendation: string;
+}
+
 // ───── News Types ─────
 
 export interface NewsItem {

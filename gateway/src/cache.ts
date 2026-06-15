@@ -14,6 +14,7 @@ export const TTL_TECHNICAL = 300;     // 技术分析：5分钟
 export const TTL_NEWS = 600;          // 新闻：10分钟
 export const TTL_AI_ANALYSIS = 0;     // AI分析：不缓存
 export const TTL_ST_RISK = 600;       // ST风险：10分钟
+export const TTL_HOURLY = 3600;       // 通用小时级：1小时
 
 class TTLCache {
   private store: Map<string, { expireAt: number; value: any }> = new Map();

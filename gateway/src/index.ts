@@ -14,6 +14,8 @@ import { analyze as analyzeTechnical } from './tools/technical';
 import { getStRisk } from './tools/st_risk';
 import { searchNews } from './tools/news';
 import { analyzeStock } from './tools/analyzer';
+import { analyzeTrapRisk } from './tools/trap';
+import { analyzeLhb } from './tools/lhb';
 import { runBacktest, listStrategies } from './tools/backtest/index';
 import { getCache } from './cache';
 import { getHealthTracker } from './health';
@@ -238,6 +240,58 @@ const TOOLS: McpTool[] = [
       }
 
       return runBacktest(code, records, strategy, days, capital);
+    },
+    price: 0,
+  },
+
+  {
+    name: 'check_trap_risk',
+    description: '杀猪盘检测 — 从K线 + 新闻检测推广/拉盘/出货等杀猪盘特征信号\nArgs: code=股票代码, name=股票名称（可选提高准确度）\n自动获取K线数据并搜索新闻中的推广关键词，输出风险评级',
+    inputSchema: { type: 'object', properties: { code: { type: 'string', description: '股票代码' }, name: { type: 'string', description: '股票名称（可选）' } }, required: ['code'] },
+    handler: async (params) => {
+      const code = (params?.code || '').toString().trim();
+      const name = (params?.name || '').toString().trim();
+      if (!code) return { error: '股票代码不能为空' };
+
+      // Fetch kline data for analysis
+      const ct = codeType(code);
+      let records: any[];
+      if (ct === 'a') {
+        const kline = await tencent.getKline(code, 60);
+        records = kline.records || [];
+      } else if (ct === 'us' || ct === 'hk') {
+        const kline = await yahoo.getKline(code, 60);
+        records = kline.records || [];
+      } else {
+        return { error: `无法识别股票代码: ${code}` };
+      }
+
+      // Get realtime quote for price/volume
+      let quote: any;
+      if (ct === 'a') quote = await tencent.getRealtimeQuote(code);
+      else quote = await yahoo.getRealtimeQuote(code);
+
+      return analyzeTrapRisk({
+        code,
+        name: name || quote.name || code,
+        price: quote.price,
+        volume: quote.volume,
+        marketCap: quote.market_cap_raw || quote.circulating_cap_raw,
+        klineRecords: records,
+      });
+    },
+    price: 0,
+  },
+  {
+    name: 'analyze_lhb',
+    description: '龙虎榜分析 — 个股近30日龙虎榜数据、游资席位识别、机构vs游资博弈\nArgs: code=股票代码（仅A股）\n通过东方财富数据接口获取，自动匹配22位知名游资席位',
+    inputSchema: { type: 'object', properties: { code: { type: 'string', description: '股票代码（仅A股）' } }, required: ['code'] },
+    handler: async (params) => {
+      const code = (params?.code || '').toString().trim();
+      if (!code) return { error: '股票代码不能为空' };
+      const ct = codeType(code);
+      if (ct !== 'a') return { error: '龙虎榜数据仅支持A股' };
+      return analyzeLhb(code);
     },
     price: 0,
   },

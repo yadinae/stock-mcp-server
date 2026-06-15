@@ -18,6 +18,8 @@ import { analyzeTrapRisk } from './tools/trap';
 import { analyzeLhb } from './tools/lhb';
 import { fetchFinancials } from './tools/financials';
 import { computeDcf } from './tools/dcf';
+import { buildIcMemo } from './tools/icmemo';
+import { buildUnitEconomics } from './tools/unit_econ';
 import { runBacktest, listStrategies } from './tools/backtest/index';
 import { initCache, getCacheStats, makeCacheKey, TTL_ST_RISK } from './cache';
 import { getHealthTracker } from './health';
@@ -324,6 +326,54 @@ const TOOLS: McpTool[] = [
 
       const currentPrice = (quote as any)?.price || 0;
       return computeDcf({ fin, currentPrice });
+    },
+    price: 0,
+  },
+
+  // ═══ UZI-Skill Port: IC Memo ═══
+  {
+    name: 'ic_memo',
+    description: '投委会备忘录 — 质量评分 × DCF估值 → P0-P4 级别买入/观望/回避建议\\nArgs: code=股票代码\\n基于财务数据和DCF估值，从质量(ROE/FCF/净利率/负债率)和估值(安全边际)两个维度评分，产出正式投资建议',
+    inputSchema: { type: 'object', properties: { code: { type: 'string', description: '股票代码' } }, required: ['code'] },
+    handler: async (params) => {
+      const code = (params?.code || '').toString().trim();
+      if (!code) return { error: '股票代码不能为空' };
+      const ct = codeType(code);
+      if (ct !== 'a') return { error: 'IC Memo 目前仅支持A股' };
+
+      const [fin, quote] = await Promise.all([
+        fetchFinancials(code),
+        tencent.getRealtimeQuote(code).catch(() => ({ price: 0, name: code })),
+      ]);
+
+      let dcf = null;
+      try {
+        const currentPrice = (quote as any)?.price || 0;
+        dcf = await computeDcf({ fin, currentPrice });
+      } catch { /* DCF may fail for banks/insurers */ }
+
+      return buildIcMemo(code, (quote as any)?.name || code, fin, dcf, quote as any);
+    },
+    price: 0,
+  },
+
+  // ═══ UZI-Skill Port: Unit Economics ═══
+  {
+    name: 'unit_economics',
+    description: '单元经济分析 — SaaS: ARPU/LTV/CAC/回本周期 | 非SaaS: 毛利瀑布分解\\nArgs: code=股票代码\\n基于财务数据分析业务模型健康度',
+    inputSchema: { type: 'object', properties: { code: { type: 'string', description: '股票代码' } }, required: ['code'] },
+    handler: async (params) => {
+      const code = (params?.code || '').toString().trim();
+      if (!code) return { error: '股票代码不能为空' };
+      const ct = codeType(code);
+      if (ct !== 'a') return { error: 'Unit Economics 目前仅支持A股' };
+
+      const [fin, quote] = await Promise.all([
+        fetchFinancials(code),
+        tencent.getRealtimeQuote(code).catch(() => ({ price: 0, name: code })),
+      ]);
+
+      return buildUnitEconomics(code, (quote as any)?.name || code, fin);
     },
     price: 0,
   },

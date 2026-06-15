@@ -271,12 +271,12 @@ def get_stock_context(code: str) -> str:
         except Exception as e:
             result["technical"] = {"error": str(e)}
 
-    # 新闻（并行获取）
-    news_tasks = {
-        "news": lambda: search_news(code, _get_stock_info(code).get("name", "")),
-    }
-    news_results = run_parallel(news_tasks, timeout=15)
-    result["news"] = news_results.get("news", {"error": "获取失败"})
+    # 新闻（单任务，直接调用不走并行开销）
+    try:
+        stock_name = _get_stock_info(code).get("name", "")
+        result["news"] = search_news(code, stock_name)
+    except Exception as e:
+        result["news"] = {"error": str(e)}
 
     result["time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     return json.dumps(result, ensure_ascii=False, default=str)

@@ -6,15 +6,17 @@
 
 from __future__ import annotations
 
+import atexit
 import logging
-import threading
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import time
+from concurrent.futures import ThreadPoolExecutor, TimeoutError, as_completed
 from typing import Any, Callable
 
 logger = logging.getLogger("stock-mcp.parallel")
 
 # 全局线程池（最多4个worker，避免API限流）
 _executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="stock-mcp")
+atexit.register(lambda: _executor.shutdown(wait=False))
 
 
 def run_parallel(tasks: dict[str, Callable[[], Any]],
@@ -28,39 +30,72 @@ def run_parallel(tasks: dict[str, Callable[[], Any]],
     Returns:
         {名称: 结果或错误信息}
     """
-    results: dict[str, Any] = {}
-    locks: dict[str, threading.Lock] = {}
+    if not tasks:
+        return {}
 
-    def safe_run(name: str, fn: Callable) -> None:
+    # 单任务：提交到线程池由全局 timeout 保护，避免无超时阻塞
+    if len(tasks) == 1:
+        name, fn = next(iter(tasks.items()))
+        fut = _executor.submit(fn)
         try:
-            result = fn()
-            with locks.get(name, threading.Lock()):
-                results[name] = result
+            return {name: fut.result(timeout=timeout)}
+        except Exception as e:
+            fut.cancel()
+            return {name: {"error": str(e) if not isinstance(e, TimeoutError) else f"超时（>{timeout}s）"}}
+
+    results: dict[str, Any] = {}
+    futures = {}
+
+    def safe_run(name: str, fn: Callable) -> tuple[str, Any]:
+        try:
+            return name, fn()
         except Exception as e:
             logger.warning("并行任务 %s 失败: %s", name, e)
-            with locks.get(name, threading.Lock()):
-                results[name] = {"error": str(e)}
+            return name, {"error": str(e)}
 
-    futures = {}
     for name, fn in tasks.items():
-        locks[name] = threading.Lock()
         futures[_executor.submit(safe_run, name, fn)] = name
 
-    for future in as_completed(futures, timeout=timeout * 2):
-        pass  # safe_run 已经写了 results
+    deadline = time.monotonic() + timeout
+    for future in as_completed(futures, timeout=timeout):
+        name = futures[future]
+        try:
+            _, result = future.result()
+            results[name] = result
+        except Exception as e:
+            results[name] = {"error": str(e)}
+
+        if len(results) == len(tasks):
+            break
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
 
     # 超时强制取消未完成的任务
     for future in futures:
         if not future.done():
             future.cancel()
 
+    # 补充未返回的任务为超时
+    for name in tasks:
+        if name not in results:
+            results[name] = {"error": f"超时（>{timeout}s）"}
+
     return results
 
 
 def parallel_map(fn: Callable, items: list, max_workers: int = 4) -> list:
-    """对列表每个元素并行执行函数
+    """对列表每个元素并行执行函数（复用全局线程池）"""
+    if not items:
+        return []
+    if len(items) == 1:
+        return [fn(items[0])]
 
-    用于批量并行获取多个股票行情。
-    """
-    with ThreadPoolExecutor(max_workers=max_workers) as pool:
-        return list(pool.map(fn, items))
+    futures = [_executor.submit(fn, item) for item in items]
+    results = []
+    for f in futures:
+        try:
+            results.append(f.result())
+        except Exception as e:
+            results.append({"error": str(e)})
+    return results

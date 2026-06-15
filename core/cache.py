@@ -20,7 +20,7 @@ logger = logging.getLogger("stock-mcp.cache")
 # ── 默认 TTL 常量 ───────────────────────────────────────
 TTL_REALTIME = 30       # 实时行情：30秒（盘中变化快）
 TTL_KLINE = 300         # K 线：5分钟
-TTL_STOCK_INFO = 300    # 股票信息：5分钟
+TTL_STOCK_INFO = 3600    # 股票信息：1小时（名称/代码等几乎不变）
 TTL_TECHNICAL = 300     # 技术分析：5分钟（基于K线，变化慢）
 TTL_NEWS = 600          # 新闻：10分钟
 TTL_AI_ANALYSIS = 0     # AI 分析：不缓存（每次可能不同）

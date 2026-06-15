@@ -129,7 +129,7 @@ export function buildValuePlan(
       `Step 1 · 现 EBITDA ${ebitdaEst.toFixed(1)} 亿 (${ebitdaMargin.toFixed(0)}% 利润率)`,
       `Step 2 · 5 大杠杆合计加厚 ${totalUplift.toFixed(1)} 亿`,
       `Step 3 · 目标 EBITDA ${targetEbitda.toFixed(1)} 亿 (${targetMargin.toFixed(0)}%)`,
-      `Step 4 · +${((targetMargin - ebitdaMargin) / ebitdaMargin * 100).toFixed(0)}% 利润率改善`,
+      `Step 4 · ${ebitdaMargin > 0 ? `+${((targetMargin - ebitdaMargin) / ebitdaMargin * 100).toFixed(0)}% 利润率改善` : 'N/A (基期为负)'}`,
     ],
   };
 }

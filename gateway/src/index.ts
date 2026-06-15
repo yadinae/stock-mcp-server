@@ -411,15 +411,17 @@ const TOOLS: McpTool[] = [
       if (!code) return { error: '股票代码不能为空' };
 
       let fin = null, dcf = null, trap = null, risk = null;
+      let stockName = code;
       try {
         const q = await tencent.getRealtimeQuote(code);
+        stockName = (q as any)?.name || code;
         fin = await fetchFinancials(code);
 
         if (fin && fin.code !== '' && (q as any)?.price > 0) {
           dcf = await computeDcf({ fin, currentPrice: (q as any).price });
         }
         trap = await analyzeTrapRisk({
-          code, name: (q as any)?.name || code,
+          code, name: stockName,
           price: (q as any)?.price, volume: (q as any)?.volume,
           marketCap: (q as any)?.market_cap_raw,
           klineRecords: [],
@@ -427,7 +429,7 @@ const TOOLS: McpTool[] = [
         risk = await getStRisk(code, q as any);
       } catch { /* best-effort */ }
 
-      return buildDdChecklist(code, code, fin, dcf, trap, risk);
+      return buildDdChecklist(code, stockName, fin, dcf, trap, risk);
     },
     price: 0,
   },

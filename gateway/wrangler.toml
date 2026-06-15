@@ -4,5 +4,9 @@ compatibility_date = "2025-03-01"
 compatibility_flags = ["nodejs_compat"]
 
 # === Environment variables (set via wrangler secret or dashboard) ===
-# GATEWAY_API_KEY    — API Key for authentication (set at deploy time)
-# GATEWAY_ADMIN_KEY  — Admin key for managing the gateway (optional, Phase 0)
+# GATEWAY_API_KEY       — API Key for Bearer token authentication
+# GATEWAY_ADMIN_KEY     — Admin key (optional)
+# STOCK_LLM_BASE_URL    — OpenAI-compatible LLM base URL (default: https://api.openai.com/v1)
+# STOCK_LLM_API_KEY     — LLM API key for AI stock analysis (analyze_stock_ai tool)
+# STOCK_LLM_MODEL       — Model name (default: gpt-4o-mini)
+# STOCK_LLM_TIMEOUT     — LLM request timeout in seconds (default: 120)

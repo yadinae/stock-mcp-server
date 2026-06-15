@@ -3,6 +3,9 @@
  *
  * 5 built-in strategies generating buy/sell signals from K-line data.
  * All pure math — no external dependencies.
+ *
+ * Each strategy accepts (records, params) where params is a flat options object.
+ * This avoids the fragility of positional-argument spreading.
  */
 
 import { BacktestSignal } from "../../types";
@@ -16,7 +19,9 @@ function safeClose(records: any[], idx: number): number {
 
 // ── Strategy 1: MA Crossover ──
 
-export function maCrossover(records: any[], fast = 5, slow = 20): Signal[] {
+export function maCrossover(records: any[], params: Record<string, any> = {}): Signal[] {
+  const fast = params.fast ?? 5;
+  const slow = params.slow ?? 20;
   if (records.length < slow + 2) return [{ action: "hold", date: "", price: 0, reason: `数据不足（需要${slow+2}条）` }];
 
   const signals: Signal[] = [];
@@ -25,14 +30,11 @@ export function maCrossover(records: any[], fast = 5, slow = 20): Signal[] {
     const maSlow = calcMA(records.slice(0, i + 1), slow);
     const maFastPrev = calcMA(records.slice(0, i), fast);
     const maSlowPrev = calcMA(records.slice(0, i), slow);
-
     if (maFast === 0 || maSlow === 0) continue;
     const price = safeClose(records, i);
     if (price === 0) continue;
-
     const prevCross = maFastPrev - maSlowPrev;
     const currCross = maFast - maSlow;
-
     if (prevCross <= 0 && currCross > 0) {
       signals.push({ date: records[i].date, action: "buy", price, reason: `MA金叉: MA${fast}=${maFast.toFixed(2)} 上穿 MA${slow}=${maSlow.toFixed(2)}` });
     } else if (prevCross >= 0 && currCross < 0) {
@@ -44,15 +46,13 @@ export function maCrossover(records: any[], fast = 5, slow = 20): Signal[] {
 
 // ── Strategy 2: MACD ──
 
-export function macdCrossover(records: any[]): Signal[] {
+export function macdCrossover(records: any[], _params: Record<string, any> = {}): Signal[] {
   const vals = records.filter(r => r.close).map(r => r.close);
   if (vals.length < 26) return [{ action: "hold", date: "", price: 0, reason: "数据不足（需要26条）" }];
-
   const signals: Signal[] = [];
   for (let i = 25; i < vals.length; i++) {
     const cur = calcMACD(vals.slice(0, i + 1));
     const prev = calcMACD(vals.slice(0, i));
-
     if (cur.signal === "金叉" && prev.signal !== "金叉") {
       signals.push({ date: records[i].date, action: "buy", price: vals[i], reason: `MACD金叉: DIF=${cur.dif} 上穿 DEA=${cur.dea}` });
     } else if (cur.signal === "死叉" && prev.signal !== "死叉") {
@@ -64,17 +64,16 @@ export function macdCrossover(records: any[]): Signal[] {
 
 // ── Strategy 3: RSI Mean Reversion ──
 
-export function rsiMeanReversion(records: any[], oversold = 30, overbought = 70): Signal[] {
+export function rsiMeanReversion(records: any[], params: Record<string, any> = {}): Signal[] {
+  const oversold = params.oversold ?? 30;
+  const overbought = params.overbought ?? 70;
   const vals = records.filter(r => r.close).map(r => r.close);
   if (vals.length < 15) return [{ action: "hold", date: "", price: 0, reason: "数据不足（需要15条）" }];
-
   const signals: Signal[] = [];
   for (let i = 14; i < vals.length; i++) {
     const cur = calcRSI(vals.slice(0, i + 1), 14);
     const prev = calcRSI(vals.slice(0, i), 14);
-    const curVal = cur.value;
-    const prevVal = prev.value;
-
+    const curVal = cur.value, prevVal = prev.value;
     if (prevVal < oversold && curVal >= oversold) {
       signals.push({ date: records[i].date, action: "buy", price: vals[i], reason: `RSI回升: ${prevVal}→${curVal} 突破超卖线${oversold}` });
     } else if (prevVal > overbought && curVal <= overbought) {
@@ -86,21 +85,16 @@ export function rsiMeanReversion(records: any[], oversold = 30, overbought = 70)
 
 // ── Strategy 4: Bollinger Bounce ──
 
-export function bollingerBounce(records: any[]): Signal[] {
+export function bollingerBounce(records: any[], _params: Record<string, any> = {}): Signal[] {
   if (records.length < 21) return [{ action: "hold", date: "", price: 0, reason: "数据不足（需要21条）" }];
-
   const signals: Signal[] = [];
   for (let i = 20; i < records.length; i++) {
     const curBB = calcBollinger(records.slice(0, i + 1), 20);
     const prevBB = calcBollinger(records.slice(0, i), 20);
-    const price = safeClose(records, i);
-    const prevPrice = safeClose(records, i - 1);
-
+    const price = safeClose(records, i), prevPrice = safeClose(records, i - 1);
     const { upper, lower } = curBB;
     const { upper: prevUpper, lower: prevLower } = prevBB;
-
     if (lower === 0 || upper === 0) continue;
-
     if (prevPrice < prevLower && price >= lower) {
       signals.push({ date: records[i].date, action: "buy", price, reason: `布林带下轨反弹: 下轨=${lower.toFixed(2)}` });
     } else if (prevPrice > prevUpper && price <= upper) {
@@ -112,18 +106,14 @@ export function bollingerBounce(records: any[]): Signal[] {
 
 // ── Strategy 5: Combined Signals ──
 
-export function combinedSignals(records: any[]): Signal[] {
+export function combinedSignals(records: any[], _params: Record<string, any> = {}): Signal[] {
   const vals = records.filter(r => r.close).map(r => r.close);
   if (vals.length < 26) return [{ action: "hold", date: "", price: 0, reason: "数据不足" }];
-
   const signals: Signal[] = [];
   let prevScore = 50;
-
   for (let i = 25; i < records.length; i++) {
     const window = records.slice(0, i + 1);
     const price = safeClose(records, i);
-
-    // MA contribution (40%)
     const ma5 = calcMA(window, 5);
     const ma20 = calcMA(window, 20);
     let maScore = 0;
@@ -133,17 +123,11 @@ export function combinedSignals(records: any[]): Signal[] {
     } else if (ma20 > 0) {
       const ratio = Math.min((ma20 - ma5) / ma20 * 100, 10) / 10;
       maScore = 40 - ratio * 40;
-    } else {
-      maScore = 40;
-    }
-
-    // MACD contribution (30%)
+    } else { maScore = 40; }
     const macd = calcMACD(vals.slice(0, i + 1));
     let macdScore = 15;
     if (macd.signal === "金叉") macdScore = 30;
     else if (macd.signal === "死叉") macdScore = 0;
-
-    // RSI contribution (30%)
     const rsi = calcRSI(vals.slice(0, i + 1), 14);
     const rsiVal = rsi.value;
     let rsiScore = 10;
@@ -151,15 +135,14 @@ export function combinedSignals(records: any[]): Signal[] {
     else if (rsiVal < 50) rsiScore = 20;
     else if (rsiVal < 70) rsiScore = 10;
     else rsiScore = 0;
-
     const totalScore = maScore * 0.4 + macdScore * 0.3 + rsiScore * 0.3;
-
-    if (prevScore <= 60 && totalScore > 60) {
+    // 总分上限约50（MA最高80×0.4 + MACD最高30×0.3 + RSI最高30×0.3）
+    // 调整阈值到可行范围（原 Python 版也有同样的 bug）
+    if (prevScore <= 30 && totalScore > 30) {
       signals.push({ date: records[i].date, action: "buy", price, reason: `组合信号看多: 总分${Math.round(totalScore)} (MA=${Math.round(maScore)} MACD=${Math.round(macdScore)} RSI=${Math.round(rsiScore)})` });
-    } else if (prevScore >= 40 && totalScore < 40) {
+    } else if (prevScore >= 25 && totalScore < 25) {
       signals.push({ date: records[i].date, action: "sell", price, reason: `组合信号看空: 总分${Math.round(totalScore)} (MA=${Math.round(maScore)} MACD=${Math.round(macdScore)} RSI=${Math.round(rsiScore)})` });
     }
-
     prevScore = totalScore;
   }
   return signals;
@@ -167,12 +150,12 @@ export function combinedSignals(records: any[]): Signal[] {
 
 // ── Registry ──
 
-export const STRATEGY_REGISTRY: Record<string, (records: any[], ...args: any[]) => Signal[]> = {
-  ma_crossover: maCrossover as any,
-  macd: macdCrossover as any,
-  rsi: rsiMeanReversion as any,
-  bollinger: bollingerBounce as any,
-  combined: combinedSignals as any,
+export const STRATEGY_REGISTRY: Record<string, (records: any[], params?: Record<string, any>) => Signal[]> = {
+  ma_crossover: maCrossover,
+  macd: macdCrossover,
+  rsi: rsiMeanReversion,
+  bollinger: bollingerBounce,
+  combined: combinedSignals,
 };
 
 export const STRATEGY_NAMES: Record<string, string> = {
@@ -202,5 +185,6 @@ export function listStrategies(): { id: string; name: string; params: Record<str
 export function runStrategy(sid: string, records: any[], kwargs?: Record<string, any>): Signal[] {
   const fn = STRATEGY_REGISTRY[sid];
   if (!fn) return [{ action: "hold" as const, date: "", price: 0, reason: `未知策略: ${sid}` }];
-  return fn(records, ...Object.values(kwargs || {}));
+  // Pass params as a single options object — avoids Object.values() order fragility
+  return fn(records, kwargs || {});
 }

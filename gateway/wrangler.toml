@@ -1,0 +1,8 @@
+name = "mcp-gateway"
+main = "src/index.ts"
+compatibility_date = "2025-03-01"
+compatibility_flags = ["nodejs_compat"]
+
+# === Environment variables (set via wrangler secret or dashboard) ===
+# GATEWAY_API_KEY    — API Key for authentication (set at deploy time)
+# GATEWAY_ADMIN_KEY  — Admin key for managing the gateway (optional, Phase 0)

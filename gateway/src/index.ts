@@ -382,6 +382,23 @@ export default {
       // Route
       let response: JsonRpcResponse;
       switch (body.method) {
+        case 'initialize':
+          response = {
+            jsonrpc: '2.0',
+            result: {
+              protocolVersion: '2025-03-26',
+              capabilities: {
+                tools: {},
+                logging: {},
+              },
+              serverInfo: {
+                name: 'mcp-gateway',
+                version: '1.0.0',
+              },
+            },
+            id: body.id,
+          };
+          break;
         case 'tools/list':
           response = handleToolsList();
           break;

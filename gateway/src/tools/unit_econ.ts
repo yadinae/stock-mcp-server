@@ -120,8 +120,8 @@ function buildNonRecurringUnitEconomics(
   fin: FinancialSnapshot,
 ): UnitEconResult {
   const revenueYi = Math.abs(fin.revenue || 0) / 1e8;
-  const grossMargin = 0; // we don't have direct gross margin data
   const netMargin = fin.net_margin || 10;
+  const grossMargin = Math.min(netMargin * 2 + 10, 80); // estimate: net_margin * 2 + 10%, capped at 80%
   const opexPct = Math.max(0, grossMargin - netMargin);
 
   const waterfall: MarginStage[] = [

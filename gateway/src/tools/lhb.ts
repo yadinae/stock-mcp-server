@@ -5,7 +5,7 @@
  * Matches 营业部 names against known 游资 seats, splits institutional vs hot money.
  */
 
-import { getCache, makeCacheKey, TTL_HOURLY } from "../cache";
+import { getCache, setCache, makeCacheKey, TTL_HOURLY } from "../cache";
 import type {
   LhbReport, LhbRecord, YouziActivity, LhbSplit,
 } from "../types";
@@ -184,9 +184,8 @@ function generateRecommendation(split: LhbSplit, youziCount: number): string {
 
 export async function analyzeLhb(code: string): Promise<LhbReport> {
   // Cache check
-  const cache = getCache();
-  const cacheKey = makeCacheKey("lhb", code);
-  const cached = cache.get(cacheKey);
+  const lKey = makeCacheKey("lhb", code);
+  const cached = await getCache(lKey);
   if (cached) return cached;
 
   // 1. Get LHB statistics (appearance count + stock name)
@@ -311,6 +310,6 @@ export async function analyzeLhb(code: string): Promise<LhbReport> {
     recommendation,
   };
 
-  cache.set(cacheKey, report, TTL_HOURLY);
+  await setCache(lKey, report, TTL_HOURLY);
   return report;
 }

@@ -10,3 +10,7 @@ compatibility_flags = ["nodejs_compat"]
 # STOCK_LLM_API_KEY     — LLM API key for AI stock analysis (analyze_stock_ai tool)
 # STOCK_LLM_MODEL       — Model name (default: gpt-4o-mini)
 # STOCK_LLM_TIMEOUT     — LLM request timeout in seconds (default: 120)
+
+[[kv_namespaces]]
+binding = "GATEWAY_KV"
+id = "bc4c5867e02e4eaebc9f73c14caa2d93"

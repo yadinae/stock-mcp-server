@@ -5,7 +5,7 @@
  * No API key required.
  */
 
-import { getCache, makeCacheKey, TTL_NEWS } from "../cache";
+import { getCache, setCache, makeCacheKey, TTL_NEWS } from "../cache";
 import type { NewsResult, NewsItem } from "../types";
 
 const HTTP_HEADERS = {
@@ -71,9 +71,9 @@ async function searchBaidu(query: string): Promise<NewsItem[]> {
 }
 
 export async function searchNews(stockCode: string, stockName = ""): Promise<NewsResult> {
-  const cache = getCache();
-  const key = makeCacheKey("news", stockCode, stockName || stockCode);
-  const cached = cache.get(key);
+  
+  const nKey = makeCacheKey("news", stockCode, stockName || stockCode);
+  const cached = await getCache(nKey);
   if (cached) return cached;
 
   const queries = [stockCode];
@@ -111,6 +111,6 @@ export async function searchNews(stockCode: string, stockName = ""): Promise<New
     time: cnTime,
   };
 
-  cache.set(key, result, TTL_NEWS);
+  await setCache(nKey, result, TTL_NEWS);
   return result;
 }

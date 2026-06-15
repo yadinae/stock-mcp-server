@@ -5,7 +5,7 @@
  * No external dependencies (no TA-Lib, no numpy).
  */
 
-import { getCache, makeCacheKey, TTL_TECHNICAL } from "../cache";
+import { getCache, setCache, makeCacheKey, TTL_TECHNICAL } from "../cache";
 import type {
   KlineRecord, TrendResult, MacdResult, RsiResult,
   BollingerResult, IchimokuResult, CandlePattern, TechnicalResult,
@@ -265,7 +265,7 @@ function identifyCandlePatterns(records: KlineRecord[]): CandlePattern[] {
 
 // ── Main analyze() ──
 
-export function analyze(records: KlineRecord[], code = ""): TechnicalResult {
+export async function analyze(records: KlineRecord[], code = ""): Promise<TechnicalResult> {
   const vals = closes(records);
   if (vals.length === 0) {
     return { error: "无数据" } as any;
@@ -273,9 +273,8 @@ export function analyze(records: KlineRecord[], code = ""): TechnicalResult {
 
   const lastDate = records.length > 0 ? records[records.length - 1].date : "";
   const firstDate = records.length > 0 ? records[0].date : "";
-  const cacheKey = makeCacheKey("technical", code, lastDate, firstDate, String(records.length));
-  const cache = getCache();
-  const cached = cache.get(cacheKey);
+  const techKey = makeCacheKey("technical", code, lastDate, firstDate, String(records.length));
+  const cached = await getCache(techKey);
   if (cached) return cached;
 
   const trend = calcTrendStatus(records);
@@ -330,6 +329,6 @@ export function analyze(records: KlineRecord[], code = ""): TechnicalResult {
     analysis_count: records.length,
   };
 
-  cache.set(cacheKey, result, TTL_TECHNICAL);
+  await setCache(techKey, result, TTL_TECHNICAL);
   return result;
 }

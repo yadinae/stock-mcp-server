@@ -8,7 +8,7 @@
  * Ported methodology from UZI-Skill trap-detector (v3.9.0)
  */
 
-import { getCache, makeCacheKey, TTL_REALTIME } from "../cache";
+import { getCache, setCache, makeCacheKey, TTL_REALTIME } from "../cache";
 import type { TrapReport, TrapSignal, KlineRecord } from "../types";
 
 // ───── K-Line Signal Detection ─────
@@ -238,9 +238,8 @@ export async function analyzeTrapRisk(input: TrapInput): Promise<TrapReport> {
   const { code, name, price, volume, marketCap, klineRecords } = input;
 
   // Cache check
-  const cache = getCache();
-  const cacheKey = makeCacheKey("trap", code);
-  const cached = cache.get(cacheKey);
+  const cKey = makeCacheKey("trap", code);
+  const cached = await getCache(cKey);
   if (cached) return cached;
 
   const allSignals: TrapSignal[] = [];
@@ -305,6 +304,6 @@ export async function analyzeTrapRisk(input: TrapInput): Promise<TrapReport> {
     recommendation,
   };
 
-  cache.set(cacheKey, report, TTL_REALTIME);
+  await setCache(cKey, report, TTL_REALTIME);
   return report;
 }

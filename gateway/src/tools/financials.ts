@@ -8,7 +8,7 @@
  * - 5-period historical data for trend analysis
  */
 
-import { getCache, makeCacheKey, TTL_HOURLY } from "../cache";
+import { getCache, setCache, makeCacheKey, TTL_HOURLY } from "../cache";
 import type { FinancialSnapshot } from "../types";
 import { getRealtimeQuote } from "./tencent";
 
@@ -42,9 +42,8 @@ interface EmRecord {
 }
 
 export async function fetchFinancials(code: string): Promise<FinancialSnapshot> {
-  const cache = getCache();
-  const cacheKey = makeCacheKey("fin", code);
-  const cached = cache.get(cacheKey);
+  const fKey = makeCacheKey("fin", code);
+  const cached = await getCache(fKey);
   if (cached) return cached;
 
   // Fetch financial main data (last 5 reports)
@@ -116,6 +115,6 @@ export async function fetchFinancials(code: string): Promise<FinancialSnapshot> 
     result.dates.push((r.REPORT_DATE || "").slice(0, 7)); // YYYY-MM
   }
 
-  cache.set(cacheKey, result, TTL_HOURLY);
+  await setCache(fKey, result, TTL_HOURLY);
   return result;
 }

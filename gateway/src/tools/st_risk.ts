@@ -5,7 +5,7 @@
  * abnormal volume + price drop.
  */
 
-import { getCache, makeCacheKey, TTL_ST_RISK } from "../cache";
+import { getCache, setCache, invalidateCache, makeCacheKey, TTL_ST_RISK } from "../cache";
 import type { RiskReport, RiskSignal } from "../types";
 
 const RISK_LEVELS: Record<number, string> = {
@@ -113,10 +113,10 @@ export function assessRisk(
   };
 }
 
-export function getStRisk(code: string, realtimeData: Record<string, any>): RiskReport {
-  const cache = getCache();
-  const key = makeCacheKey("st_risk", code);
-  const cached = cache.get(key);
+export async function getStRisk(code: string, realtimeData: Record<string, any>): Promise<RiskReport> {
+  
+  const stKey = makeCacheKey("st_risk", code);
+  const cached = await getCache(stKey);
   if (cached) return cached;
 
   const result = assessRisk(
@@ -127,6 +127,6 @@ export function getStRisk(code: string, realtimeData: Record<string, any>): Risk
     realtimeData.volume_ratio,
   );
 
-  cache.set(key, result, TTL_ST_RISK);
+  await setCache(stKey, result, TTL_ST_RISK);
   return result;
 }

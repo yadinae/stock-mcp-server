@@ -19,7 +19,7 @@ import { analyzeLhb } from './tools/lhb';
 import { fetchFinancials } from './tools/financials';
 import { computeDcf } from './tools/dcf';
 import { runBacktest, listStrategies } from './tools/backtest/index';
-import { getCache } from './cache';
+import { initCache, getCacheStats, makeCacheKey, TTL_ST_RISK } from './cache';
 import { getHealthTracker } from './health';
 
 // ───── Tool Registry ─────
@@ -112,7 +112,7 @@ const TOOLS: McpTool[] = [
       } else {
         return { error: `无法识别股票代码: ${code}` };
       }
-      return analyzeTechnical(records, code);
+      return await analyzeTechnical(records, code);
     },
     price: 0,
   },
@@ -169,7 +169,7 @@ const TOOLS: McpTool[] = [
       const [quote, kline] = await Promise.all([quoteP, klineP]);
       const stockName = name || quote.name || code;
       const records = kline.records || [];
-      const technical = records.length > 0 ? analyzeTechnical(records, code) : { error: '无K线数据' };
+      const technical = records.length > 0 ? await analyzeTechnical(records, code) : { error: '无K线数据' };
       const news = await searchNews(code, stockName);
 
       return analyzeStock(code, stockName, quote, kline, technical, news, env);
@@ -334,7 +334,7 @@ const TOOLS: McpTool[] = [
     description: '获取缓存统计（命中率、条目数、各TTL分布）',
     inputSchema: { type: 'object', properties: {} },
     handler: async () => {
-      return getCache().stats;
+      return getCacheStats();
     },
     price: 0,
   },
@@ -398,6 +398,9 @@ const STRATEGY_LIST = listStrategies().map(s => `${s.id}: ${s.name}(${JSON.strin
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
+    // Init cache with KV binding (if available)
+    initCache(env);
+
     const url = new URL(request.url);
     const method = request.method;
 
@@ -419,7 +422,7 @@ export default {
         version: '1.0.0',
         tools: TOOLS.length,
         tool_names: TOOLS.map(t => t.name),
-        cache: getCache().stats,
+        cache: getCacheStats(),
         strategies: STRATEGY_LIST,
       }), {
         headers: { 'Content-Type': 'application/json', ...corsHeaders },

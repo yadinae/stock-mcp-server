@@ -25,6 +25,7 @@ import { buildDdChecklist } from './tools/dd_checklist';
 import { runBacktest, listStrategies } from './tools/backtest/index';
 import { initCache, getCacheStats, makeCacheKey, TTL_ST_RISK } from './cache';
 import { getHealthTracker } from './health';
+import { checkRateLimit, getUsageStats } from './rate_limit';
 
 // ───── Tool Registry ─────
 
@@ -542,6 +543,35 @@ export default {
       });
     }
 
+    // ─── Admin: usage stats (requires admin key or same API key) ───
+    if (url.pathname === '/usage' && method === 'GET') {
+      const auth = await verifyAuth(request, env);
+      if (!auth.ok) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
+      }
+      const key = url.searchParams.get('key') || auth.key || '';
+      if (!key || !env.GATEWAY_KV) {
+        return new Response(JSON.stringify({ error: 'No KV binding or key specified' }), { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
+      }
+      const stats = await getUsageStats(env.GATEWAY_KV, key);
+      return new Response(JSON.stringify({
+        key: key.slice(0, 8) + '...',
+        usage: stats,
+        limits: {
+          perMinute: 60,
+          perDay: 5000,
+          expensivePerMinute: 20,
+          expensivePerDay: 500,
+        },
+        remaining: {
+          minute: Math.max(0, 60 - stats.currentMinute),
+          day: Math.max(0, 5000 - stats.currentDay),
+        },
+      }), {
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      });
+    }
+
     // ─── MCP Protocol Endpoint ───
     if (url.pathname === '/mcp' && method === 'POST') {
       // Auth
@@ -597,9 +627,27 @@ export default {
         case 'tools/list':
           response = handleToolsList();
           break;
-        case 'tools/call':
+        case 'tools/call': {
+          // ─── Rate limit: only check for tool calls ───
+          const toolName = body.params?.name || '';
+          if (toolName && env.GATEWAY_KV) {
+            const rl = await checkRateLimit(env.GATEWAY_KV, auth.key || 'anonymous', toolName);
+            if (!rl.allowed) {
+              response = {
+                jsonrpc: '2.0',
+                error: {
+                  code: -32029,
+                  message: rl.error || 'Rate limit exceeded',
+                  data: { remainingMinute: rl.remainingMinute, remainingDay: rl.remainingDay, resetMinute: rl.resetMinute },
+                },
+                id: body.id,
+              };
+              break;
+            }
+          }
           response = await handleToolsCall(body, env);
           break;
+        }
         default:
           response = {
             jsonrpc: '2.0',

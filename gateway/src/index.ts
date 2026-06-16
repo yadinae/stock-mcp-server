@@ -26,6 +26,7 @@ import { runBacktest, listStrategies } from './tools/backtest/index';
 import { initCache, getCacheStats, makeCacheKey, TTL_ST_RISK } from './cache';
 import { getHealthTracker } from './health';
 import { checkRateLimit, getUsageStats } from './rate_limit';
+import { queryAuditLogs } from './audit_log';
 
 // ───── Tool Registry ─────
 
@@ -543,7 +544,7 @@ export default {
       });
     }
 
-    // ─── Admin: usage stats (requires admin key or same API key) ───
+    // ─── Admin: usage stats ───
     if (url.pathname === '/usage' && method === 'GET') {
       const auth = await verifyAuth(request, env);
       if (!auth.ok) {
@@ -568,6 +569,24 @@ export default {
           day: Math.max(0, 5000 - stats.currentDay),
         },
       }), {
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      });
+    }
+
+    // ─── Audit logs ───
+    if (url.pathname === '/logs' && method === 'GET') {
+      const auth = await verifyAuth(request, env);
+      if (!auth.ok) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
+      }
+      if (!env.GATEWAY_KV) {
+        return new Response(JSON.stringify({ error: 'KV not bound' }), { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
+      }
+      const date = url.searchParams.get('date') || undefined;
+      const limit = parseInt(url.searchParams.get('limit') || '50', 10);
+      const cursor = url.searchParams.get('cursor') || undefined;
+      const result = await queryAuditLogs(env.GATEWAY_KV, { date, limit, cursor });
+      return new Response(JSON.stringify(result), {
         headers: { 'Content-Type': 'application/json', ...corsHeaders },
       });
     }
@@ -645,7 +664,36 @@ export default {
               break;
             }
           }
+          // ─── Execute tool —──
+          const startMs = Date.now();
           response = await handleToolsCall(body, env);
+          const durationMs = Date.now() - startMs;
+          // ─── Audit log (fire-and-forget, don't block response) ───
+          if (toolName && env.GATEWAY_KV && auth.key) {
+            const safeArgs: Record<string, any> = {};
+            if (body.params?.arguments) {
+              for (const [k, v] of Object.entries(body.params.arguments)) {
+                if (['code', 'name', 'strategy', 'days', 'capital'].includes(k)) {
+                  safeArgs[k] = v;
+                }
+              }
+            }
+            // Write audit log entry directly to KV
+            const ts = new Date().toISOString();
+            const dateKey = ts.slice(0, 10).replace(/-/g, '');
+            const kvKey = 'audit:' + dateKey + ':' + Date.now() + ':' + Math.floor(Math.random() * 10000);
+            const logEntry = JSON.stringify({
+              timestamp: ts,
+              apiKey: auth.key.slice(0, 8) + '...',
+              tool: toolName,
+              args: safeArgs,
+              status: response.error ? 'error' : 'ok',
+              durationMs,
+              errorMessage: response.error?.message || null,
+            });
+            // Blocking write for reliability
+            await env.GATEWAY_KV.put(kvKey, logEntry, { expirationTtl: 604800 });
+          }
           break;
         }
         default:

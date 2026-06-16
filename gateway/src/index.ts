@@ -27,6 +27,7 @@ import { initCache, getCacheStats, makeCacheKey, TTL_ST_RISK } from './cache';
 import { getHealthTracker } from './health';
 import { checkRateLimit, getUsageStats } from './rate_limit';
 import { queryAuditLogs } from './audit_log';
+import { recordUsage, getUsageHistory, getBillingReport, getMonthlyUsage, TOOL_PRICES } from './usage';
 
 // ───── Tool Registry ─────
 
@@ -505,7 +506,7 @@ const STRATEGY_LIST = listStrategies().map(s => `${s.id}: ${s.name}(${JSON.strin
 // ───── HTTP Route Handler ─────
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     // Init cache with KV binding (if available)
     initCache(env);
 
@@ -544,30 +545,103 @@ export default {
       });
     }
 
-    // ─── Admin: usage stats ───
+    // ─── Admin: usage stats (enhanced with billing info) ───
     if (url.pathname === '/usage' && method === 'GET') {
       const auth = await verifyAuth(request, env);
       if (!auth.ok) {
         return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
       }
       const key = url.searchParams.get('key') || auth.key || '';
+      const daysStr = url.searchParams.get('days') || '1';
       if (!key || !env.GATEWAY_KV) {
         return new Response(JSON.stringify({ error: 'No KV binding or key specified' }), { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
       }
-      const stats = await getUsageStats(env.GATEWAY_KV, key);
+
+      // Current rate limit stats
+      const rateStats = await getUsageStats(env.GATEWAY_KV, key);
+
+      // Today's usage aggregate
+      const days = Math.min(parseInt(daysStr, 10) || 1, 90);
+      const usageHistory = await getUsageHistory(env.GATEWAY_KV, key, days);
+
+      // Current month
+      const now = new Date();
+      const monthKey = `${now.getFullYear()}${pad2(now.getMonth() + 1)}`;
+      const currentMonth = await getMonthlyUsage(env.GATEWAY_KV, key, monthKey);
+
       return new Response(JSON.stringify({
         key: key.slice(0, 8) + '...',
-        usage: stats,
+        realtime: {
+          currentMinute: rateStats.currentMinute,
+          currentDay: rateStats.currentDay,
+          remainingMinute: Math.max(0, 60 - rateStats.currentMinute),
+          remainingDay: Math.max(0, 5000 - rateStats.currentDay),
+        },
         limits: {
           perMinute: 60,
           perDay: 5000,
           expensivePerMinute: 20,
           expensivePerDay: 500,
         },
-        remaining: {
-          minute: Math.max(0, 60 - stats.currentMinute),
-          day: Math.max(0, 5000 - stats.currentDay),
+        recent: {
+          days,
+          totalCalls: usageHistory.totals.calls,
+          totalCost: usageHistory.totals.cost,
+          daily: usageHistory.daily,
         },
+        currentMonth: currentMonth ? {
+          month: monthKey,
+          calls: currentMonth.count,
+          cost: currentMonth.cost,
+        } : null,
+        toolPrices: TOOL_PRICES,
+      }), {
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      });
+    }
+
+    // ─── Admin: usage history ───
+    if (url.pathname === '/usage/history' && method === 'GET') {
+      const auth = await verifyAuth(request, env);
+      if (!auth.ok) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
+      }
+      const key = url.searchParams.get('key') || auth.key || '';
+      const days = Math.min(parseInt(url.searchParams.get('days') || '7', 10), 90);
+      if (!key || !env.GATEWAY_KV) {
+        return new Response(JSON.stringify({ error: 'No KV binding or key specified' }), { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
+      }
+      const history = await getUsageHistory(env.GATEWAY_KV, key, days);
+      return new Response(JSON.stringify({
+        key: key.slice(0, 8) + '...',
+        days,
+        ...history,
+      }), {
+        headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      });
+    }
+
+    // ─── Admin: billing report ───
+    if (url.pathname === '/usage/billing' && method === 'GET') {
+      const auth = await verifyAuth(request, env);
+      if (!auth.ok) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
+      }
+      const key = url.searchParams.get('key') || auth.key || '';
+      const month = url.searchParams.get('month') || '';
+      if (!key || !env.GATEWAY_KV) {
+        return new Response(JSON.stringify({ error: 'No KV binding or key specified' }), { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
+      }
+      if (!month || !/^\d{6}$/.test(month)) {
+        return new Response(JSON.stringify({ error: 'Invalid month format. Use YYYYMM, e.g. 202606' }), { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
+      }
+      const report = await getBillingReport(env.GATEWAY_KV, key, month);
+      if (!report) {
+        return new Response(JSON.stringify({ key: key.slice(0, 8) + '...', month, error: 'No usage data for this month' }), { headers: { 'Content-Type': 'application/json', ...corsHeaders } });
+      }
+      return new Response(JSON.stringify({
+        key: key.slice(0, 8) + '...',
+        ...report,
       }), {
         headers: { 'Content-Type': 'application/json', ...corsHeaders },
       });
@@ -693,6 +767,9 @@ export default {
             });
             // Blocking write for reliability
             await env.GATEWAY_KV.put(kvKey, logEntry, { expirationTtl: 604800 });
+
+            // ─── Usage tracking (background, but guaranteed via waitUntil) ───
+            ctx.waitUntil(recordUsage(env.GATEWAY_KV, auth.key, toolName));
           }
           break;
         }
@@ -751,4 +828,8 @@ function codeType(code: string): 'a' | 'us' | 'hk' | 'unknown' {
   if (c.startsWith('SH') || c.startsWith('SZ')) return 'a';
   if (/^[A-Z]{1,4}$/.test(c)) return 'us';
   return 'unknown';
+}
+
+function pad2(n: number): string {
+  return n < 10 ? '0' + n : '' + n;
 }

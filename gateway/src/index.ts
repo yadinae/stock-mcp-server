@@ -27,7 +27,7 @@ import { initCache, getCacheStats, makeCacheKey, TTL_ST_RISK } from './cache';
 import { getHealthTracker } from './health';
 import { checkRateLimit, getUsageStats } from './rate_limit';
 import { queryAuditLogs } from './audit_log';
-import { recordUsage, getUsageHistory, getBillingReport, getMonthlyUsage, TOOL_PRICES } from './usage';
+import { recordUsage, getUsageHistory, getBillingReport, getMonthlyUsage, TOOL_PRICES, pad2 } from './usage';
 
 // ───── Tool Registry ─────
 
@@ -828,8 +828,4 @@ function codeType(code: string): 'a' | 'us' | 'hk' | 'unknown' {
   if (c.startsWith('SH') || c.startsWith('SZ')) return 'a';
   if (/^[A-Z]{1,4}$/.test(c)) return 'us';
   return 'unknown';
-}
-
-function pad2(n: number): string {
-  return n < 10 ? '0' + n : '' + n;
 }

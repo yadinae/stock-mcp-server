@@ -45,38 +45,6 @@ export interface UsageHistoryResult {
 
 // ───── Tool Pricing Model ─────
 
-// Free tools — 0 credits
-const FREE_TOOLS = new Set([
-  'get_realtime_quote',
-  'get_stock_info',
-  'get_cache_stats',
-  'get_data_source_health',
-]);
-
-// Premium tools — high cost (AI inference, heavy compute)
-const PREMIUM_TOOLS: Record<string, number> = {
-  'analyze_stock_ai': 5,
-  'check_backtest': 5,
-};
-
-// Analysis tools — medium cost
-const ANALYSIS_TOOLS: Record<string, number> = {
-  'get_technical_analysis': 2,
-  'check_st_risk': 2,
-  'check_trap_risk': 2,
-};
-
-// Bundle tools — aggregate multiple data sources
-const BUNDLE_TOOLS: Record<string, number> = {
-  'get_stock_context': 3,
-  'analyze_stocks': 3,
-  'dcf_valuation': 3,
-  'ic_memo': 3,
-  'unit_economics': 3,
-  'value_creation_plan': 3,
-  'dd_checklist': 3,
-};
-
 /** Tool price catalogue for reporting */
 export const TOOL_PRICES: ToolPriceEntry[] = [
   // Free
@@ -291,6 +259,6 @@ export async function getBillingReport(
 
 // ───── Helpers ─────
 
-function pad2(n: number): string {
+export function pad2(n: number): string {
   return n < 10 ? '0' + n : '' + n;
 }

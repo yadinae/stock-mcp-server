@@ -740,11 +740,14 @@ export default {
 
   <div class="card" style="margin-top:16px;">
     <h2>🔑 API 凭证</h2>
-    <label for="apiKey">API Key</label>
     <div class="flex-row">
-      <input type="text" id="apiKey" placeholder="输入你的 API Key..." style="margin-bottom:0;flex:1;">
-      <button id="loadBtn" onclick="loadAll()">加载</button>
+      <input type="text" id="apiKey" placeholder="输入 API Key..." style="margin-bottom:0;flex:1;font-family:monospace;font-size:13px;">
+      <button id="loadBtn" onclick="saveAndLoad()">加载</button>
       <button class="secondary" onclick="clearKey()" style="white-space:nowrap;">清除</button>
+    </div>
+    <div id="accessStatus" style="margin-top:8px;padding:8px;background:#0f172a;border-radius:6px;font-size:13px;display:flex;align-items:center;gap:8px;">
+      <span id="statusDot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#eab308;"></span>
+      <span id="statusText">输入 API Key 加载数据</span>
     </div>
   </div>
 
@@ -805,12 +808,6 @@ export default {
 const BASE = window.location.origin;
 let apiKey = localStorage.getItem('mcp_gateway_key') || '';
 
-// Auto-fill and auto-load if key exists
-if (apiKey) {
-  document.getElementById('apiKey').value = apiKey;
-  document.addEventListener('DOMContentLoaded', () => setTimeout(loadAll, 100));
-}
-
 function showToast(msg, isError) {
   const t = document.getElementById('toast');
   t.textContent = msg;
@@ -819,28 +816,81 @@ function showToast(msg, isError) {
 }
 
 async function apiFetch(path) {
-  const r = await fetch(BASE + path, {
-    headers: { 'Authorization': 'Bearer ' + apiKey }
-  });
+  const headers = {};
+  // Try Access first (if page is behind Access or Service Token)
+  // Fall back to Bearer token
+  if (apiKey) {
+    headers['Authorization'] = 'Bearer ' + apiKey;
+  }
+  const r = await fetch(BASE + path, { headers, credentials: 'same-origin' });
+  if (r.status === 401) {
+    const cur = document.getElementById('statusText');
+    if (cur) cur.textContent = '❌ 未认证 - 请输入 API Key 或通过 Cloudflare Access 访问';
+    showToast('需要认证', true);
+  }
+  if (r.status === 302) {
+    // Access redirect - try without Bearer (might be protected by Access)
+    if (apiKey) {
+      const r2 = await fetch(BASE + path, { credentials: 'same-origin' });
+      if (r2.status === 302) {
+        showToast('此页面需 Cloudflare Access 登录 - 请打开浏览器访问', true);
+        return null;
+      }
+      return r2.json();
+    }
+    showToast('需要 Cloudflare Access 登录', true);
+    return null;
+  }
   return r.json();
 }
 
 function switchTab(name) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.getElementById('tab' + name.charAt(0).toUpperCase() + name.slice(1)).classList.add('active');
+  const el = document.getElementById('tab' + name.charAt(0).toUpperCase() + name.slice(1));
+  if (el) el.classList.add('active');
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-  document.getElementById('panel' + name.charAt(0).toUpperCase() + name.slice(1)).classList.add('active');
+  const panel = document.getElementById('panel' + name.charAt(0).toUpperCase() + name.slice(1));
+  if (panel) panel.classList.add('active');
 }
 
+function saveAndLoad() {
+  const input = document.getElementById('apiKey');
+  apiKey = input ? input.value.trim() : '';
+  if (apiKey) localStorage.setItem('mcp_gateway_key', apiKey);
+  loadAll();
+}
+
+function clearKey() {
+  localStorage.removeItem('mcp_gateway_key');
+  apiKey = '';
+  const input = document.getElementById('apiKey');
+  if (input) input.value = '';
+  showToast('Key 已清除');
+}
+
+// Auto-load if key saved
+document.addEventListener('DOMContentLoaded', () => {
+  if (apiKey) {
+    document.getElementById('apiKey').value = apiKey;
+    loadAll();
+  } else {
+    // Try without key (might be behind Access)
+    loadAll();
+  }
+});
+
 async function loadAll() {
-  apiKey = document.getElementById('apiKey').value.trim();
-  if (!apiKey) { showToast('请输入 API Key', true); return; }
-  localStorage.setItem('mcp_gateway_key', apiKey);
   try {
     document.getElementById('statusBadge').textContent = '⏳ 加载中...';
+    const statusDot = document.getElementById('statusDot');
+    const statusText = document.getElementById('statusText');
+    if (statusDot) statusDot.style.background = '#eab308';
+    if (statusText) statusText.textContent = '⏳ 加载数据...';
     await Promise.all([loadHealth(), loadUsage(), loadLogs()]);
     document.getElementById('statusBadge').textContent = '✅ 已连接';
     document.getElementById('statusBadge').style.borderColor = '#166534';
+    if (statusDot) statusDot.style.background = '#22c55e';
+    if (statusText) statusText.textContent = apiKey ? '✅ Bearer Token' : '✅ 已连接 (Access)';
   } catch(e) {
     document.getElementById('statusBadge').textContent = '❌ 连接失败';
     document.getElementById('statusBadge').style.borderColor = '#7f1d1d';
@@ -935,14 +985,6 @@ const params = new URLSearchParams(window.location.search);
 if (params.get('key')) {
   document.getElementById('apiKey').value = params.get('key');
   loadAll();
-}
-
-function clearKey() {
-  localStorage.removeItem('mcp_gateway_key');
-  apiKey = '';
-  document.getElementById('apiKey').value = '';
-  showToast('Key 已清除');
-  document.getElementById('statusBadge').textContent = '⏳ 未连接';
 }
 </script>
 </body>
@@ -1079,8 +1121,8 @@ function clearKey() {
       });
     }
 
-    // ─── MCP Protocol Endpoint ───
-    if (url.pathname === '/mcp' && method === 'POST') {
+    // ─── MCP Protocol Endpoint (primary, behind Access if configured) ───
+    if ((url.pathname === '/mcp' || url.pathname === '/v1') && method === 'POST') {
       // Auth
       const auth = await verifyAuth(request, env);
       if (!auth.ok) {

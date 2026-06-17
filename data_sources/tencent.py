@@ -68,7 +68,7 @@ def code_to_tx_symbol(code: str) -> str:
     if c.isdigit():
         if c.startswith(("6", "5")):
             return f"sh{c}"
-        if c.startswith(("0", "3")):
+        if c.startswith(("0", "3", "1")):
             return f"sz{c}"
         if c.startswith(("4", "8")):
             return f"bj{c}"

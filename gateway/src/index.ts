@@ -6,7 +6,7 @@
  * All tools run inline via fetch() — zero Python dependencies.
  */
 
-import { Env, JsonRpcRequest, JsonRpcResponse, McpTool } from './types';
+import { Env, JsonRpcRequest, JsonRpcResponse, McpTool, McpResourceTemplate } from './types';
 import { verifyAuth } from './auth';
 import * as tencent from './tools/tencent';
 import * as yahoo from './tools/yahoo';
@@ -458,6 +458,135 @@ const TOOLS: McpTool[] = [
   },
 ];
 
+// ───── MCP Resource Definitions ─────
+// Stock resources use URIs: stock://{code}/{type}
+// Types: quote, kline, technical, financials, news, context
+
+const RESOURCE_TEMPLATES: McpResourceTemplate[] = [
+  {
+    uriTemplate: 'stock://{code}/quote',
+    name: '股票实时行情',
+    description: '获取单只股票的实时行情数据（价格、涨跌幅、成交量等）',
+    mimeType: 'application/json',
+  },
+  {
+    uriTemplate: 'stock://{code}/kline',
+    name: '股票K线数据',
+    description: '获取股票最近60个交易日的日K线数据（开/高/低/收/量）',
+    mimeType: 'application/json',
+  },
+  {
+    uriTemplate: 'stock://{code}/technical',
+    name: '股票技术分析',
+    description: '获取股票技术分析指标（MA/MACD/RSI/布林带/趋势评分）',
+    mimeType: 'application/json',
+  },
+  {
+    uriTemplate: 'stock://{code}/financials',
+    name: '股票财务数据',
+    description: '获取股票最新财务报表核心数据（营收/利润/EPS/FCF/负债）',
+    mimeType: 'application/json',
+  },
+  {
+    uriTemplate: 'stock://{code}/news',
+    name: '股票相关新闻',
+    description: '获取股票近期的相关新闻',
+    mimeType: 'application/json',
+  },
+  {
+    uriTemplate: 'stock://{code}/context',
+    name: '股票综合概览',
+    description: '一次调用获取股票的实时行情 + K线 + 技术分析综合数据',
+    mimeType: 'application/json',
+  },
+  {
+    uriTemplate: 'stock://list/hot',
+    name: '热门股票列表',
+    description: '获取当前热门股票列表（示例数据）',
+    mimeType: 'application/json',
+  },
+];
+
+/** Resolve a stock:// URI to its data */
+async function resolveResource(uri: string, env: Env): Promise<{ content: any; mimeType: string } | null> {
+  // Parse stock://{code}/{type}
+  const match = uri.match(/^stock:\/\/([^/]+)\/(\w+)$/);
+  if (!match) return null;
+  const code = match[1];
+  const type = match[2];
+
+  // Handle special URIs
+  if (code === 'list' && type === 'hot') {
+    return {
+      content: { stocks: ['600519', '000001', '300750', 'AAPL', 'HK00700'], note: '示例热门列表，可通过 get_realtime_quote 工具查询各代码' },
+      mimeType: 'application/json',
+    };
+  }
+
+  const ct = codeType(code);
+  if (ct === 'unknown') {
+    return { content: { error: `无法识别股票代码: ${code}` }, mimeType: 'application/json' };
+  }
+
+  try {
+    switch (type) {
+      case 'quote': {
+        let quote: any;
+        if (ct === 'a') quote = await tencent.getRealtimeQuote(code);
+        else quote = await yahoo.getRealtimeQuote(code);
+        return { content: quote, mimeType: 'application/json' };
+      }
+      case 'kline': {
+        let kline: any;
+        if (ct === 'a') kline = await tencent.getKline(code, 60);
+        else kline = await yahoo.getKline(code, 60);
+        return { content: kline, mimeType: 'application/json' };
+      }
+      case 'technical': {
+        let records: any[];
+        if (ct === 'a') {
+          const kline = await tencent.getKline(code, 90);
+          records = kline.records || [];
+        } else {
+          const kline = await yahoo.getKline(code, 90);
+          records = kline.records || [];
+        }
+        const result = await analyzeTechnical(records, code);
+        return { content: result, mimeType: 'application/json' };
+      }
+      case 'financials': {
+        const fin = await fetchFinancials(code);
+        return { content: fin, mimeType: 'application/json' };
+      }
+      case 'news': {
+        const news = await searchNews(code, '');
+        return { content: news, mimeType: 'application/json' };
+      }
+      case 'context': {
+        let quote: any, kline: any;
+        if (ct === 'a') {
+          [quote, kline] = await Promise.all([tencent.getRealtimeQuote(code), tencent.getKline(code, 60)]);
+        } else {
+          [quote, kline] = await Promise.all([yahoo.getRealtimeQuote(code), yahoo.getKline(code, 60)]);
+        }
+        let technical: any = { error: '无K线数据' };
+        const records = kline.records || [];
+        if (records.length > 0) {
+          technical = await analyzeTechnical(records, code);
+        }
+        return {
+          content: { code, name: quote.name || code, quote, kline, technical },
+          mimeType: 'application/json',
+        };
+      }
+      default:
+        return { content: { error: `未知资源类型: ${type}，可用类型: quote, kline, technical, financials, news, context` }, mimeType: 'application/json' };
+    }
+  } catch (err: any) {
+    return { content: { error: err.message || '获取资源失败' }, mimeType: 'application/json' };
+  }
+}
+
 // ───── MCP Method Handlers ─────
 
 function handleToolsList(): JsonRpcResponse {
@@ -535,6 +664,275 @@ export default {
         strategies: STRATEGY_LIST,
       }), {
         headers: { 'Content-Type': 'application/json', ...corsHeaders },
+      });
+    }
+
+    // ─── Admin: Dashboard UI ───
+    if (url.pathname === '/dashboard' && method === 'GET') {
+      const dashboardHtml = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MCP Gateway 管理面板</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #e2e8f0; padding: 20px; }
+  .container { max-width: 1200px; margin: 0 auto; }
+  h1 { font-size: 24px; margin-bottom: 8px; color: #f8fafc; }
+  .subtitle { color: #94a3b8; margin-bottom: 24px; font-size: 14px; }
+  .card { background: #1e293b; border-radius: 12px; padding: 20px; margin-bottom: 16px; border: 1px solid #334155; }
+  .card h2 { font-size: 16px; color: #f1f5f9; margin-bottom: 12px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; margin-bottom: 16px; }
+  .stat { background: #1e293b; border-radius: 12px; padding: 20px; border: 1px solid #334155; }
+  .stat .label { font-size: 12px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; }
+  .stat .value { font-size: 28px; font-weight: 700; color: #f8fafc; margin-top: 4px; }
+  .stat .value.green { color: #22c55e; }
+  .stat .value.yellow { color: #eab308; }
+  .stat .value.red { color: #ef4444; }
+  .stat .sub { font-size: 12px; color: #64748b; margin-top: 4px; }
+  .section { margin-bottom: 24px; }
+  label { display: block; font-size: 14px; color: #94a3b8; margin-bottom: 6px; }
+  input, select { width: 100%; padding: 10px 12px; background: #0f172a; border: 1px solid #334155; border-radius: 8px; color: #e2e8f0; font-size: 14px; margin-bottom: 12px; }
+  input:focus, select:focus { outline: none; border-color: #3b82f6; }
+  button { background: #3b82f6; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; }
+  button:hover { background: #2563eb; }
+  button.secondary { background: #334155; }
+  button.secondary:hover { background: #475569; }
+  button.danger { background: #ef4444; }
+  button.danger:hover { background: #dc2626; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 10px 8px; color: #94a3b8; font-weight: 600; border-bottom: 1px solid #334155; }
+  td { padding: 8px; border-bottom: 1px solid #1e293b; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+  .badge.ok { background: #166534; color: #86efac; }
+  .badge.err { background: #7f1d1d; color: #fca5a5; }
+  .badge.free { background: #1e3a5f; color: #93c5fd; }
+  .badge.paid { background: #713f12; color: #fde68a; }
+  .tabs { display: flex; gap: 4px; margin-bottom: 16px; }
+  .tab { padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 14px; color: #94a3b8; background: transparent; border: 1px solid transparent; }
+  .tab.active { background: #334155; color: #f8fafc; border-color: #475569; }
+  .tab:hover { color: #e2e8f0; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+  .code { font-family: 'SF Mono', Monaco, monospace; font-size: 12px; background: #0f172a; padding: 12px; border-radius: 8px; white-space: pre-wrap; max-height: 400px; overflow-y: auto; }
+  .toast { position: fixed; bottom: 20px; right: 20px; background: #166534; color: #86efac; padding: 12px 20px; border-radius: 8px; font-size: 14px; opacity: 0; transition: opacity 0.3s; }
+  .toast.error { background: #7f1d1d; color: #fca5a5; }
+  .toast.show { opacity: 1; }
+  .flex-row { display: flex; gap: 8px; align-items: center; }
+  .key-display { font-family: monospace; background: #0f172a; padding: 8px 12px; border-radius: 6px; word-break: break-all; margin: 8px 0; font-size: 13px; }
+  .mt-2 { margin-top: 12px; }
+  .mb-2 { margin-bottom: 12px; }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: #0f172a; }
+  ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="flex-row" style="justify-content:space-between;">
+    <div>
+      <h1>🔧 MCP Gateway 管理面板</h1>
+      <div class="subtitle">stock-mcp-server · Cloudflare Workers</div>
+    </div>
+    <div id="statusBadge" style="font-size:12px;padding:6px 12px;border-radius:6px;background:#1e293b;border:1px solid #334155;">⏳ 加载中...</div>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <h2>🔑 API 凭证</h2>
+    <label for="apiKey">API Key</label>
+    <div class="flex-row">
+      <input type="text" id="apiKey" placeholder="输入你的 API Key..." style="margin-bottom:0;flex:1;">
+      <button id="loadBtn" onclick="loadAll()">加载</button>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="grid" id="statsGrid">
+    <div class="stat"><div class="label">工具数</div><div class="value" id="toolCount">-</div></div>
+    <div class="stat"><div class="label">资源模板</div><div class="value" id="resourceCount">-</div></div>
+    <div class="stat"><div class="label">今日调用</div><div class="value" id="todayCalls">-</div></div>
+    <div class="stat"><div class="label">本月费用</div><div class="value" id="monthCost">-</div><div class="sub" id="monthCallsSub"></div></div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('tools')" id="tabTools">🔧 工具列表</div>
+    <div class="tab" onclick="switchTab('usage')" id="tabUsage">📊 用量详情</div>
+    <div class="tab" onclick="switchTab('logs')" id="tabLogs">📋 审计日志</div>
+    <div class="tab" onclick="switchTab('keys')" id="tabKeys">🔑 Key 管理</div>
+  </div>
+
+  <div id="panelTools" class="panel active"></div>
+  <div id="panelUsage" class="panel">
+    <div class="card"><h2>📈 用量趋势</h2><div id="usageChart" class="code" style="max-height:300px;">输入 API Key 后加载</div></div>
+    <div class="card"><h2>🏆 工具热度排行</h2><div id="toolRanking" class="code" style="max-height:300px;">输入 API Key 后加载</div></div>
+  </div>
+  <div id="panelLogs" class="panel">
+    <div class="card">
+      <div class="flex-row" style="justify-content:space-between;">
+        <h2>📋 审计日志</h2>
+        <div class="flex-row">
+          <label for="logDays" style="margin:0;font-size:12px;">天数</label>
+          <select id="logDays" style="width:80px;margin:0;" onchange="loadLogs()">
+            <option value="1">今天</option>
+            <option value="3" selected>3天</option>
+            <option value="7">7天</option>
+          </select>
+        </div>
+      </div>
+      <div id="logList" class="code" style="max-height:500px;">输入 API Key 后加载</div>
+    </div>
+  </div>
+  <div id="panelKeys" class="panel">
+    <div class="card">
+      <h2>新建 API Key</h2>
+      <input type="text" id="newKeyName" placeholder="Key 名称（如: my-app）">
+      <button onclick="createKey()">生成新 Key</button>
+      <div id="keyResult" class="key-display mt-2" style="display:none;"></div>
+    </div>
+    <div class="card">
+      <h2>已创建的 Key</h2>
+      <div class="code" style="max-height:300px;" id="keyList">功能预览：API Key 创建后存储在 KV，支持按名称/配额管理。当前使用 GATEWAY_API_KEY 环境变量认证。</div>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+const BASE = window.location.origin;
+let apiKey = '';
+
+function showToast(msg, isError) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast ' + (isError ? 'error show' : 'show');
+  setTimeout(() => t.className = 'toast', 3000);
+}
+
+async function apiFetch(path) {
+  const r = await fetch(BASE + path, {
+    headers: { 'Authorization': 'Bearer ' + apiKey }
+  });
+  return r.json();
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab' + name.charAt(0).toUpperCase() + name.slice(1)).classList.add('active');
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel' + name.charAt(0).toUpperCase() + name.slice(1)).classList.add('active');
+}
+
+async function loadAll() {
+  apiKey = document.getElementById('apiKey').value.trim();
+  if (!apiKey) { showToast('请输入 API Key', true); return; }
+  try {
+    document.getElementById('statusBadge').textContent = '⏳ 加载中...';
+    await Promise.all([loadHealth(), loadUsage(), loadLogs()]);
+    document.getElementById('statusBadge').textContent = '✅ 已连接';
+    document.getElementById('statusBadge').style.borderColor = '#166534';
+  } catch(e) {
+    document.getElementById('statusBadge').textContent = '❌ 连接失败';
+    document.getElementById('statusBadge').style.borderColor = '#7f1d1d';
+    showToast('加载失败: ' + e.message, true);
+  }
+}
+
+async function loadHealth() {
+  const h = await apiFetch('/health');
+  document.getElementById('toolCount').textContent = h.tools || '-';
+  document.getElementById('resourceCount').textContent = '7';
+  document.getElementById('todayCalls').textContent = '-';
+  // Tools list
+  let toolsHtml = '<div class="card"><h2>🔧 可用工具 (' + (h.tools || 0) + ')</h2><div class="code" style="max-height:400px;">';
+  if (h.tool_names) toolsHtml += h.tool_names.map(n => '<span class="badge ok">' + n + '</span> ').join('');
+  toolsHtml += '</div></div>';
+  document.getElementById('panelTools').innerHTML = toolsHtml;
+}
+
+async function loadUsage() {
+  try {
+    const u = await apiFetch('/usage?days=7');
+    document.getElementById('todayCalls').textContent = u.realtime?.currentDay || '-';
+    if (u.currentMonth) {
+      document.getElementById('monthCost').textContent = '$' + (u.currentMonth.cost || 0).toFixed(2);
+      document.getElementById('monthCallsSub').textContent = u.currentMonth.calls + ' 次调用';
+    } else {
+      document.getElementById('monthCost').textContent = u.recent?.totalCalls + '次调用' || '-';
+    }
+    // Usage chart
+    const daily = u.recent?.daily || [];
+    let chartHtml = '';
+    if (daily.length > 0) {
+      chartHtml += '<table><tr><th>日期</th><th>调用次数</th><th>费用</th></tr>';
+      daily.slice().reverse().forEach(d => {
+        chartHtml += '<tr><td>' + d.date + '</td><td>' + (d.calls||0) + '</td><td>$' + (d.cost||0).toFixed(2) + '</td></tr>';
+      });
+      chartHtml += '</table>';
+    } else {
+      chartHtml += '暂无数据（最近 7 天无调用记录）';
+    }
+    document.getElementById('usageChart').innerHTML = chartHtml;
+
+    // Tool ranking from health endpoint
+    const h = await apiFetch('/health');
+    let rankHtml = '<table><tr><th>工具名</th><th>备注</th></tr>';
+    (h.tool_names || []).forEach(n => {
+      rankHtml += '<tr><td>' + n + '</td><td><span class="badge free">免费</span></td></tr>';
+    });
+    rankHtml += '</table>';
+    document.getElementById('toolRanking').innerHTML = rankHtml;
+  } catch(e) {
+    document.getElementById('usageChart').innerHTML = '加载失败: ' + e.message;
+  }
+}
+
+async function loadLogs() {
+  try {
+    const days = document.getElementById('logDays').value;
+    const logs = await apiFetch('/logs?limit=100&days=' + days);
+    let html = '';
+    const entries = logs.entries || logs.logs || [];
+    if (entries.length === 0) {
+      html = '暂无日志记录';
+    } else {
+      html += '<table><tr><th>时间</th><th>工具</th><th>代码</th><th>状态</th><th>耗时</th></tr>';
+      entries.slice(0, 100).forEach(e => {
+        const ts = e.timestamp || e.time || '-';
+        const tool = e.tool || e.name || '-';
+        const code = (e.args && e.args.code) || '-';
+        const status = e.status || e.error ? 'error' : 'ok';
+        html += '<tr><td>' + (ts.length > 16 ? ts.slice(0, 16) : ts) + '</td><td>' + tool + '</td><td>' + code + '</td><td><span class="badge ' + (status === 'ok' ? 'ok' : 'err') + '">' + status + '</span></td><td>' + (e.durationMs || '-') + 'ms</td></tr>';
+      });
+      html += '</table>';
+    }
+    document.getElementById('logList').innerHTML = html;
+  } catch(e) {
+    document.getElementById('logList').innerHTML = '加载失败: ' + e.message;
+  }
+}
+
+async function createKey() {
+  const name = document.getElementById('newKeyName').value.trim();
+  if (!name) { showToast('请输入 Key 名称', true); return; }
+  showToast('API Key 管理功能需对接 edge-key 发卡系统（P2 待办）', false);
+  document.getElementById('keyResult').style.display = 'block';
+  document.getElementById('keyResult').textContent = '即将支持：通过 edge-key 自动生成 API Key 并记录到 KV。当前请使用 GATEWAY_API_KEY 环境变量。';
+}
+
+// Load key from URL params
+const params = new URLSearchParams(window.location.search);
+if (params.get('key')) {
+  document.getElementById('apiKey').value = params.get('key');
+  loadAll();
+}
+</script>
+</body>
+</html>`;
+      return new Response(dashboardHtml, {
+        headers: { 'Content-Type': 'text/html; charset=utf-8', ...corsHeaders },
       });
     }
 
@@ -707,6 +1105,7 @@ export default {
               protocolVersion: '2025-03-26',
               capabilities: {
                 tools: {},
+                resources: {},
                 logging: {},
               },
               serverInfo: {
@@ -773,6 +1172,64 @@ export default {
           }
           break;
         }
+        case 'resources/list':
+          response = {
+            jsonrpc: '2.0',
+            result: {
+              resourceTemplates: RESOURCE_TEMPLATES,
+              resources: [
+                {
+                  uri: 'stock://list/hot',
+                  name: '热门股票列表',
+                  description: '获取当前热门股票列表',
+                  mimeType: 'application/json',
+                },
+              ],
+            },
+            id: body.id,
+          };
+          break;
+        case 'resources/read':
+          try {
+            const uri = body.params?.uri || '';
+            if (!uri) {
+              response = {
+                jsonrpc: '2.0',
+                error: { code: -32602, message: 'Missing resource URI' },
+                id: body.id,
+              };
+              break;
+            }
+            const resolved = await resolveResource(uri, env);
+            if (!resolved) {
+              response = {
+                jsonrpc: '2.0',
+                error: { code: -32602, message: `Unknown resource URI: ${uri}. Use stock://{code}/{type} where type=quote|kline|technical|financials|news|context` },
+                id: body.id,
+              };
+              break;
+            }
+            response = {
+              jsonrpc: '2.0',
+              result: {
+                contents: [
+                  {
+                    uri,
+                    mimeType: resolved.mimeType,
+                    text: typeof resolved.content === 'string' ? resolved.content : JSON.stringify(resolved.content, null, 2),
+                  },
+                ],
+              },
+              id: body.id,
+            };
+          } catch (err: any) {
+            response = {
+              jsonrpc: '2.0',
+              error: { code: -32603, message: err.message || 'Failed to read resource' },
+              id: body.id,
+            };
+          }
+          break;
         default:
           response = {
             jsonrpc: '2.0',

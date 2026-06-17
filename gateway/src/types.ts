@@ -14,6 +14,22 @@ export interface JsonRpcResponse {
   id: string | number | null;
 }
 
+// ───── MCP Resource Definition ─────
+
+export interface McpResource {
+  uri: string;
+  name: string;
+  description: string;
+  mimeType?: string;
+}
+
+export interface McpResourceTemplate {
+  uriTemplate: string;
+  name: string;
+  description: string;
+  mimeType?: string;
+}
+
 // ───── MCP Tool Definition ─────
 
 export interface McpTool {

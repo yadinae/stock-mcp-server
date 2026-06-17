@@ -744,6 +744,7 @@ export default {
     <div class="flex-row">
       <input type="text" id="apiKey" placeholder="输入你的 API Key..." style="margin-bottom:0;flex:1;">
       <button id="loadBtn" onclick="loadAll()">加载</button>
+      <button class="secondary" onclick="clearKey()" style="white-space:nowrap;">清除</button>
     </div>
   </div>
 
@@ -802,7 +803,13 @@ export default {
 
 <script>
 const BASE = window.location.origin;
-let apiKey = '';
+let apiKey = localStorage.getItem('mcp_gateway_key') || '';
+
+// Auto-fill and auto-load if key exists
+if (apiKey) {
+  document.getElementById('apiKey').value = apiKey;
+  document.addEventListener('DOMContentLoaded', () => setTimeout(loadAll, 100));
+}
 
 function showToast(msg, isError) {
   const t = document.getElementById('toast');
@@ -828,6 +835,7 @@ function switchTab(name) {
 async function loadAll() {
   apiKey = document.getElementById('apiKey').value.trim();
   if (!apiKey) { showToast('请输入 API Key', true); return; }
+  localStorage.setItem('mcp_gateway_key', apiKey);
   try {
     document.getElementById('statusBadge').textContent = '⏳ 加载中...';
     await Promise.all([loadHealth(), loadUsage(), loadLogs()]);
@@ -927,6 +935,14 @@ const params = new URLSearchParams(window.location.search);
 if (params.get('key')) {
   document.getElementById('apiKey').value = params.get('key');
   loadAll();
+}
+
+function clearKey() {
+  localStorage.removeItem('mcp_gateway_key');
+  apiKey = '';
+  document.getElementById('apiKey').value = '';
+  showToast('Key 已清除');
+  document.getElementById('statusBadge').textContent = '⏳ 未连接';
 }
 </script>
 </body>

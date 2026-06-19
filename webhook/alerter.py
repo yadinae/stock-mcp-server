@@ -409,7 +409,34 @@ def run_alert_check(
         rules = load_rules()
 
     notifier_cfg = load_notifier_config()
+
+    # ── 交易日检测: 非交易日直接静默退出 ──
+    from webhook.market_status import is_trading_day, now_bjt
+
+    market = is_trading_day()
+    today_str = now_bjt().strftime("%Y-%m-%d")
+
+    if not market["is_trading"]:
+        reason = market["reason"]
+        logger.info("非交易日，跳过告警检查: %s", reason)
+        # dry_run 模式下依然输出说明（方便调试），正常模式静默
+        if dry_run:
+            return {
+                "status": "skipped",
+                "reason": reason,
+                "market_check": market,
+                "note": f"{today_str} 非交易日，告警检查已跳过",
+            }
+        # 正常模式下静默退出，不报警不输出
+        return {
+            "status": "silent",
+            "reason": reason,
+            "stats": {"checked": 0, "errors": 0, "alerts": 0, "suppressed": 0},
+        }
+
     state = _load_state()
+
+    # ── 检查数据新鲜度（每条行情数据的 timestamp 是否等于今天） ──
     now = datetime.now(timezone(timedelta(hours=8)))
     all_alerts = AlertResult()
     stats = {"checked": 0, "errors": 0, "alerts": 0, "suppressed": 0}

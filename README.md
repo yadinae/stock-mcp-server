@@ -177,6 +177,14 @@ python3 scripts/test_tools.py --full
 - **外部依赖**：httpx, yfinance, mootdx（可选）
 - **零依赖回测**：纯 Python 标准库
 
+## Gateway（Cloudflare Workers 版）
+
+stock-mcp-server 的 Cloudflare Workers 版本已拆分到独立仓库：
+🔗 https://github.com/yadinae/stock-mcp-gateway
+
+43 个 MCP 工具，部署在 `https://mcp-gateway.yadinae.workers.dev`，覆盖：
+A 股/美股/港股行情、K线、技术分析、财报、资金流、龙虎榜、SEC Filing、期权链等。
+
 ## 版本历史
 
 | 阶段 | 内容 |

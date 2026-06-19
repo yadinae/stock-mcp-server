@@ -1,21 +1,26 @@
 # 🗺️ stock-mcp-server 开发路线图
 
-> 项目：stock-mcp-server (gateway)
+> 项目：stock-mcp-server（Python MCP 服务）
 > 仓库：https://github.com/yadinae/stock-mcp-server
-> 更新：2026-06-17
+> 更新：2026-06-19
+>
+> ⚡ Gateway（Cloudflare Workers 版）已拆分到独立仓库：
+> https://github.com/yadinae/stock-mcp-gateway
 
 ---
 
 ## ✅ 已完成
 
-| # | 事项 | 等级 | 完成日期 | 说明 |
+|| # | 事项 | 等级 | 完成日期 | 说明 |
 |:-:|:-----|:----:|:--------:|:-----|
-| 1 | **缓存+并行化** | 🔴 P0 | 6/13 | in-memory L1 + KV L2 双层缓存；数据源并行请求 |
-| 2 | **请求频率限制** | 🔴 P0 | 6/14 | per-key KV 计数器（60req/min + 5000req/day） |
-| 3 | **请求日志/审计追踪** | 🟡 P1 | 6/16 | 每次 tools/call 日志到 KV，7d TTL；GET /logs |
-| 4 | **用量追踪与计费** | 🟡 P1 | 6/16 | daily/monthly KV 聚合；20 工具计价模型（0-5 credits）；GET /usage/history + /usage/billing |
-| 5 | **MCP Resources 支持** | 🟡 P1 | 6/17 | resources/list + resources/read 端点；7种资源 URI（quote/kline/technical/financials/news/context/hot） |
-| 6 | **管理 Dashboard** | 🟡 P1 | 6/17 | 暗色主题 Web 面板，4个标签页（工具列表/用量详情/审计日志/Key管理），GET /dashboard |
+|| 1 | **缓存+并行化** | 🔴 P0 | 6/13 | in-memory L1 + KV L2 双层缓存；数据源并行请求 |
+|| 2 | **请求频率限制** | 🔴 P0 | 6/14 | per-key KV 计数器（60req/min + 5000req/day） |
+|| 3 | **请求日志/审计追踪** | 🟡 P1 | 6/16 | 每次 tools/call 日志到 KV，7d TTL；GET /logs |
+|| 4 | **用量追踪与计费** | 🟡 P1 | 6/16 | daily/monthly KV 聚合；20 工具计价模型（0-5 credits）；GET /usage/history + /usage/billing |
+|| 5 | **MCP Resources 支持** | 🟡 P1 | 6/17 | resources/list + resources/read 端点；7种资源 URI（quote/kline/technical/financials/news/context/hot） |
+|| 6 | **管理 Dashboard** | 🟡 P1 | 6/17 | 暗色主题 Web 面板，4个标签页（工具列表/用量详情/审计日志/Key管理），GET /dashboard |
+|| 6 | **Webhook 通知** | 🟢 P3 | 6/19 | 飞书/TG 推送：持仓预警、ST 异动、ETF 信号（Python 告警引擎 + Gateway 通知工具 + Hermes cron） |
+| 7 | **美股港股数据增强** | 🟢 P3 | 6/19 | 整合 global-stock-data 项目，新增12个美股港股工具：行情/财报/资金流/期权/SEC Filing等 |
 
 ---
 
@@ -37,7 +42,6 @@
 
 | # | 事项 | 说明 | 预估 |
 |:-:|:-----|:-----|:----:|
-| 6 | **Webhook 通知** | 飞书/TG 推送：持仓预警、ST 异动、ETF 买入信号 | 2d |
 | 7 | **监控集成 / Grafana** | Cloudflare Workers 指标接入，用量/响应时间/错误率可视化 | 2d |
 
 ---

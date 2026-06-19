@@ -1,0 +1,52 @@
+{
+  "holdings": [
+    {"code": "159949", "name": "创业板50ETF华安", "status": "套牢"},
+    {"code": "512010", "name": "医药ETF易方达", "status": "套牢"},
+    {"code": "512660", "name": "军工ETF国泰", "status": "套牢"},
+    {"code": "510200", "name": "上证券商ETF汇安", "status": "套牢"}
+  ],
+  "watchlist": [
+    {"code": "603310", "name": "巍华新材"}
+  ],
+  "etf_pool": [
+    {"code": "512480", "name": "半导体ETF国联安"},
+    {"code": "588000", "name": "科创50ETF华夏"},
+    {"code": "510300", "name": "沪深300ETF华泰柏瑞"},
+    {"code": "510050", "name": "上证50ETF华夏"},
+    {"code": "513100", "name": "纳指ETF国泰"},
+    {"code": "513050", "name": "中概互联网ETF易方达"},
+    {"code": "515030", "name": "新能源车ETF华夏"},
+    {"code": "159949", "name": "创业板50ETF华安"},
+    {"code": "512010", "name": "医药ETF易方达"},
+    {"code": "512660", "name": "军工ETF国泰"}
+  ],
+  "price_drop": {
+    "enabled": true,
+    "thresholds": [-3, -5, -8]
+  },
+  "volume_spike": {
+    "enabled": true,
+    "volume_ratio_threshold": 3.0,
+    "change_pct_threshold": -3.0
+  },
+  "st_risk": {
+    "enabled": true,
+    "min_level": 2,
+    "check_interval_minutes": 60
+  },
+  "etf_signal": {
+    "enabled": true,
+    "min_score": 70,
+    "macd": {
+      "enabled": true,
+      "detect_golden_cross": true,
+      "detect_death_cross": true
+    },
+    "rsi": {
+      "enabled": true,
+      "oversold_threshold": 30.0,
+      "overbought_threshold": 70.0
+    }
+  },
+  "check_interval_minutes": 15
+}

@@ -433,5 +433,391 @@ def check_backtest(code: str, strategy: str = "ma_crossover", days: int = 365,
     return json.dumps(result, ensure_ascii=False, default=str)
 
 
+# ── Webhook 告警 ─────────────────────────────────────────
+
+
+@mcp.tool(name="run_alert_check")
+def run_alert_check(dry_run: bool = False, channel: str = "auto") -> str:
+    """运行告警检查：检查持仓预警、ST异动、ETF信号，推送飞书/TG通知
+
+    Args:
+        dry_run: True=仅检查不发送通知，False=检查并发送
+        channel: 发送渠道 (auto, feishu, telegram, all)
+
+    检查维度:
+    - 价格跌幅（阈值: -3%/-5%/-8%）
+    - 放量下跌（量比>3 + 跌幅>3%）
+    - ST 风险（风险等级 >= 警告）
+    - MACD 金叉/死叉
+    - RSI 超买/超卖
+    - ETF 技术评分 >= 70
+    """
+    try:
+        from webhook.config import load_rules, load_notifier_config
+        from webhook.alerter import run_alert_check as _run_check
+
+        rules = load_rules()
+        result = _run_check(rules=rules, dry_run=dry_run, channel=channel)
+        return json.dumps(result, ensure_ascii=False, default=str)
+    except ImportError as e:
+        return json.dumps({
+            "status": "error",
+            "error": f"Webhook 模块加载失败: {e}",
+            "note": "请确保 webhook/ 模块完整（config.py, alerter.py, rules.py, notifier.py）",
+        }, ensure_ascii=False)
+    except Exception as e:
+        return json.dumps({
+            "status": "error",
+            "error": str(e),
+        }, ensure_ascii=False)
+
+
+# ── 美股港股增强数据工具 ──────────────────────────────────
+# 整合自 simonlin1212/global-stock-data 项目
+# 覆盖：行情/K线/基本面(中文三表+关键指标)/Yahoo统计/机构持仓/
+#       资金流/期权/SEC Filing/XBRL/搜索/市场排名
+
+
+@mcp.tool(name="get_global_quote")
+def get_global_quote(code: str, source: str = "auto") -> str:
+    """获取美股/港股实时行情（增强版，多数据源）
+
+    Args:
+        code: 美股字母代码如 AAPL, TSLA / 港股5位数字如 00700, 09988
+        source: auto(自动选最优) / sina / tencent / eastmoney
+
+    字段含中文名、PE、PB、市值、52周高低等，比Yahoo基础版更丰富。
+    """
+    from data_sources.global_stock import (
+        global_quote, us_quote_sina, us_quote_tencent,
+        hk_quote_tencent, hk_quote_sina, quote_eastmoney,
+    )
+    try:
+        code = code.strip().upper()
+        if source == "sina":
+            if code.isalpha():
+                result = us_quote_sina(code)
+            else:
+                result = hk_quote_sina(code)
+        elif source == "tencent":
+            if code.isalpha():
+                result = us_quote_tencent(code)
+            else:
+                result = hk_quote_tencent(code)
+        elif source == "eastmoney":
+            secid = _code_to_secid(code)
+            result = quote_eastmoney(secid) if secid else {"error": f"无法映射secid: {code}"}
+        else:
+            result = global_quote(code)
+        result["code"] = code
+        return json.dumps(result, ensure_ascii=False, default=str)
+    except Exception as e:
+        return json.dumps({"error": str(e), "code": code}, ensure_ascii=False)
+
+
+@mcp.tool(name="get_global_kline")
+def get_global_kline(code: str, days: int = 120, interval: str = "1d") -> str:
+    """获取美股/港股历史K线数据
+
+    Args:
+        code: AAPL(美股) / 0700.HK(港股)
+        days: 天数（默认120，新浪美股可回溯至1984年）
+        interval: 周期 1d(日) / 1wk(周) / 1mo(月)
+
+    美股优先用新浪（回溯更久），港股用 Yahoo。Yahoo 支持多周期。
+    """
+    from data_sources.global_stock import us_kline_sina, kline_yahoo
+    try:
+        code_clean = code.strip().upper()
+        records = []
+
+        if code_clean.isalpha() and len(code_clean) <= 5:
+            # 美股 → 新浪
+            records = us_kline_sina(code_clean, num=days)
+            if not records:
+                # Fallback 到 Yahoo
+                range_map = {60: "3mo", 120: "6mo", 250: "1y", 750: "5y"}
+                range_ = "6mo"
+                for d, r in sorted(range_map.items()):
+                    if days <= d:
+                        range_ = r
+                        break
+                records = kline_yahoo(code_clean, interval=interval, range_=range_)
+        else:
+            # 港股 → Yahoo
+            if not code_clean.endswith(".HK"):
+                code_clean = f"{code_clean}.HK"
+            range_map = {60: "3mo", 120: "6mo", 250: "1y", 750: "5y"}
+            range_ = "6mo"
+            for d, r in sorted(range_map.items()):
+                if days <= d:
+                    range_ = r
+                    break
+            records = kline_yahoo(code_clean, interval=interval, range_=range_)
+
+        return json.dumps({
+            "code": code.strip(),
+            "records": records,
+            "count": len(records),
+        }, ensure_ascii=False, default=str)
+    except Exception as e:
+        return json.dumps({"error": str(e), "code": code}, ensure_ascii=False)
+
+
+@mcp.tool(name="get_us_financials")
+def get_us_financials(code: str, statement: str = "income", market: str = "us") -> str:
+    """获取美股/港股财务报表（中文科目名）
+
+    Args:
+        code: AAPL(美股) / 00700(港股)
+        statement: balance(资产负债表) / income(利润表) / cashflow(现金流量表)
+        market: us(美股) / hk(港股)
+
+    通过东财 datacenter 获取，中文字段名，按科目行展开。
+    """
+    from data_sources.global_stock import financial_statements, get_secucode
+    try:
+        secucode = get_secucode(code.strip().upper(), market)
+        data = financial_statements(secucode, statement=statement)
+        return json.dumps({
+            "code": code.strip(),
+            "secucode": secucode,
+            "statement": statement,
+            "records": data[:100],
+            "count": len(data[:100]),
+        }, ensure_ascii=False, default=str)
+    except Exception as e:
+        return json.dumps({"error": str(e), "code": code}, ensure_ascii=False)
+
+
+@mcp.tool(name="get_us_key_indicators")
+def get_us_key_indicators(code: str, market: str = "us") -> str:
+    """获取美股/港股关键财务指标（中文版）
+
+    Args:
+        code: AAPL(美股) / 00700(港股)
+        market: us(美股) / hk(港股)
+
+    通过东财 GMAININDICATOR 获取，含 ROE/ROA/EPS/毛利率/资产负债率 等。
+    """
+    from data_sources.global_stock import key_indicators, get_secucode
+    try:
+        secucode = get_secucode(code.strip().upper(), market)
+        data = key_indicators(secucode)
+        return json.dumps({
+            "code": code.strip(),
+            "secucode": secucode,
+            "records": data,
+            "count": len(data),
+        }, ensure_ascii=False, default=str)
+    except Exception as e:
+        return json.dumps({"error": str(e), "code": code}, ensure_ascii=False)
+
+
+@mcp.tool(name="get_yahoo_statistics")
+def get_yahoo_statistics(symbol: str) -> str:
+    """获取美股/港股关键财务指标（英文版，Yahoo）
+
+    Args:
+        symbol: AAPL(美股) / 0700.HK(港股)
+
+    返回 PE/PB/EV/利润率/ROE/目标价/Beta/股息率/机构数据等。
+    """
+    from data_sources.global_stock import yahoo_key_statistics
+    try:
+        result = yahoo_key_statistics(symbol.strip().upper())
+        return json.dumps(result, ensure_ascii=False, default=str)
+    except Exception as e:
+        return json.dumps({"error": str(e), "symbol": symbol}, ensure_ascii=False)
+
+
+@mcp.tool(name="get_institutional_holders")
+def get_institutional_holders(symbol: str) -> str:
+    """获取美股/港股机构持仓（Yahoo）
+
+    Args:
+        symbol: AAPL(美股) / 0700.HK(港股)
+
+    返回机构持股比例、前10大机构持仓明细。
+    """
+    from data_sources.global_stock import yahoo_institutional_holders
+    try:
+        result = yahoo_institutional_holders(symbol.strip().upper())
+        return json.dumps(result, ensure_ascii=False, default=str)
+    except Exception as e:
+        return json.dumps({"error": str(e), "symbol": symbol}, ensure_ascii=False)
+
+
+@mcp.tool(name="get_us_fund_flow")
+def get_us_fund_flow(code: str, days: int = 30, secid_prefix: int = 0) -> str:
+    """获取美股/港股日级资金流向
+
+    Args:
+        code: AAPL(美股) / 00700(港股)
+        days: 返回天数（默认30）
+        secid_prefix: 105=NASDAQ, 106=NYSE, 116=港股（0=自动检测）
+
+    返回主力/大单/中单/小单净流入历史。
+    """
+    from data_sources.global_stock import fund_flow_daily
+    try:
+        code_clean = code.strip().upper()
+        if secid_prefix == 0:
+            secid_prefix = _detect_secid_prefix(code_clean)
+        secid = f"{secid_prefix}.{code_clean}"
+        data = fund_flow_daily(secid, limit=days)
+        return json.dumps({
+            "code": code_clean,
+            "secid": secid,
+            "records": data,
+            "count": len(data),
+        }, ensure_ascii=False, default=str)
+    except Exception as e:
+        return json.dumps({"error": str(e), "code": code}, ensure_ascii=False)
+
+
+@mcp.tool(name="get_options_chain")
+def get_options_chain(symbol: str) -> str:
+    """获取美股期权链（Yahoo，仅美股）
+
+    Args:
+        symbol: AAPL, TSLA 等美股 ticker（港股不支持）
+
+    返回 calls + puts，含行权价/最新价/隐含波动率/Greeks。
+    """
+    from data_sources.global_stock import options_chain
+    try:
+        result = options_chain(symbol.strip().upper())
+        return json.dumps(result, ensure_ascii=False, default=str)
+    except Exception as e:
+        return json.dumps({"error": str(e), "symbol": symbol}, ensure_ascii=False)
+
+
+@mcp.tool(name="get_sec_filings")
+def get_sec_filings(ticker: str, form_type: str = "") -> str:
+    """获取 SEC EDGAR 文件列表（仅美股）
+
+    Args:
+        ticker: AAPL, TSLA 等美股 ticker
+        form_type: 筛选 10-K(年报) / 10-Q(季报) / 8-K(重大事件)，不传则返回全部
+
+    返回 Filing 列表含 SEC 官方链接。
+    """
+    from data_sources.global_stock import ticker_to_cik, sec_filings
+    try:
+        tk = ticker.strip().upper()
+        cik_info = ticker_to_cik(tk)
+        if "error" in cik_info:
+            return json.dumps(cik_info, ensure_ascii=False)
+        filings = sec_filings(cik_info["cik"], form_type=form_type)
+        filings["ticker"] = tk
+        return json.dumps(filings, ensure_ascii=False, default=str)
+    except Exception as e:
+        return json.dumps({"error": str(e), "ticker": ticker}, ensure_ascii=False)
+
+
+@mcp.tool(name="get_sec_xbrl")
+def get_sec_xbrl(ticker: str, metrics: str = "") -> str:
+    """获取 SEC XBRL 结构化财务数据（仅美股，503个GAAP指标）
+
+    Args:
+        ticker: AAPL, TSLA 等美股 ticker
+        metrics: 逗号分隔的指标名，如 "RevenueFromContractWithCustomerExcludingAssessedTax,NetIncomeLoss"
+                 不传则返回所有可用指标列表
+
+    常用指标: RevenueFromContractWithCustomerExcludingAssessedTax(营收),
+              NetIncomeLoss(净利), EarningsPerShareDiluted(稀释EPS),
+              Assets(总资产), Liabilities(总负债)
+    """
+    from data_sources.global_stock import ticker_to_cik, sec_xbrl_facts
+    try:
+        tk = ticker.strip().upper()
+        cik_info = ticker_to_cik(tk)
+        if "error" in cik_info:
+            return json.dumps(cik_info, ensure_ascii=False)
+        metrics_list = [m.strip() for m in metrics.split(",") if m.strip()] if metrics else None
+        result = sec_xbrl_facts(cik_info["cik"], metrics=metrics_list)
+        return json.dumps(result, ensure_ascii=False, default=str)
+    except Exception as e:
+        return json.dumps({"error": str(e), "ticker": ticker}, ensure_ascii=False)
+
+
+@mcp.tool(name="search_global_stock")
+def search_global_stock(keyword: str) -> str:
+    """搜索全球股票（东财，支持中英文）
+
+    Args:
+        keyword: AAPL / 苹果 / Tencent / 00700 / 特斯拉
+
+    返回代码、中文名、市场(NASDAQ/NYSE/HK)及 secid 前缀。
+    """
+    from data_sources.global_stock import stock_search
+    try:
+        results = stock_search(keyword)
+        return json.dumps({
+            "keyword": keyword,
+            "results": results,
+            "count": len(results),
+        }, ensure_ascii=False, default=str)
+    except Exception as e:
+        return json.dumps({"error": str(e), "keyword": keyword}, ensure_ascii=False)
+
+
+@mcp.tool(name="get_us_market_ranking")
+def get_us_market_ranking(market: str = "us_nasdaq", sort_by: str = "change_pct",
+                          ascending: bool = False, page: int = 1) -> str:
+    """获取美股/港股全市场涨跌幅排名
+
+    Args:
+        market: us_nasdaq(NASDAQ) / us_nyse(NYSE) / us_etf(美股ETF) / hk(港股)
+        sort_by: change_pct(涨跌幅) / volume(成交量) / amount(成交额)
+        ascending: False=降序(涨幅榜) True=升序(跌幅榜)
+
+    返回股票代码、中文名、最新价、涨跌幅、成交量、成交额等。
+    """
+    from data_sources.global_stock import market_stock_list
+    try:
+        sort_field_map = {
+            "change_pct": "f3", "volume": "f5", "amount": "f6",
+        }
+        sf = sort_field_map.get(sort_by, "f3")
+        data = market_stock_list(
+            market=market, sort_field=sf,
+            sort_desc=not ascending, page=page,
+        )
+        return json.dumps({
+            "market": market,
+            "sort_by": sort_by,
+            "total": data["total"],
+            "stocks": data["stocks"],
+            "page": page,
+        }, ensure_ascii=False, default=str)
+    except Exception as e:
+        return json.dumps({"error": str(e)}, ensure_ascii=False)
+
+
+# ── 辅助函数 ──────────────────────────────────────────────
+
+
+def _code_to_secid(code: str) -> str:
+    """将代码转为东财 secid 格式"""
+    c = code.strip().upper()
+    if c.isalpha() and len(c) <= 5:
+        return f"105.{c}"  # 默认 NASDAQ
+    if c.isdigit() and len(c) == 5:
+        return f"116.{c}"  # 港股
+    return ""
+
+
+def _detect_secid_prefix(code: str) -> int:
+    """自动检测 secid 前缀"""
+    c = code.strip().upper()
+    if c.isalpha() and len(c) <= 5:
+        return 105  # NASDAQ
+    if c.isdigit() and len(c) == 5:
+        return 116  # 港股
+    return 105
+
+
 if __name__ == "__main__":
     mcp.run()

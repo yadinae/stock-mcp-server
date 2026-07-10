@@ -796,6 +796,136 @@ def get_us_market_ranking(market: str = "us_nasdaq", sort_by: str = "change_pct"
         return json.dumps({"error": str(e)}, ensure_ascii=False)
 
 
+# ── 通达信 F10 数据增强（mootdx TCP 协议）──────────────
+# 通过通达信 TCP 直连获取 F10 级公司资料、财务数据
+# Workers 版本通过东财 HTTP 实现等价功能
+
+
+@mcp.tool(name="get_tdx_company_info")
+def get_tdx_company_info(code: str) -> str:
+    """🆕 通达信 F10 公司资料 — 公司简介、股本结构、财务摘要、除权除息
+
+    Args:
+        code: 股票代码。A股示例：600519, 000001
+
+    基于通达信 TCP 协议直连，返回完整的 F10 级数据。
+    包含：公司全称、英文名、注册地址、法人代表、总股本、流通A股等。
+    """
+    from data_sources.mootdx import _to_mootdx_code, _is_supported
+
+    if not _is_supported(code):
+        return json.dumps({"error": f"通达信不支持该代码: {code}"}, ensure_ascii=False)
+
+    mcode = _to_mootdx_code(code)
+    try:
+        from mootdx.quotes import Quotes
+        client = Quotes.factory(market="std")
+        company_info = client.company_info(mcode)
+
+        if not company_info:
+            return json.dumps({"error": "无公司资料数据", "code": code}, ensure_ascii=False)
+
+        result = {
+            "code": code,
+            "source": "mootdx_tcp",
+            "company_info": company_info.to_dict() if hasattr(company_info, 'to_dict') else str(company_info),
+        }
+
+        # 尝试获取股本结构
+        try:
+            xdxr_info = client.xdxr(mcode)
+            if xdxr_info is not None and not xdxr_info.empty:
+                result["xdxr"] = xdxr_info.head(10).to_dict(orient="records")
+        except Exception:
+            pass
+
+        return json.dumps(result, ensure_ascii=False, default=str)
+    except ImportError:
+        return json.dumps({
+            "error": "mootdx 未安装，请执行: pip install mootdx",
+            "code": code,
+        }, ensure_ascii=False)
+    except Exception as e:
+        return json.dumps({"error": str(e), "code": code}, ensure_ascii=False)
+
+
+@mcp.tool(name="get_tdx_finance_info")
+def get_tdx_finance_info(code: str) -> str:
+    """🆕 通达信 F10 财务信息 — 每股收益、总资产、净资产、营收、净利润、股东人数
+
+    Args:
+        code: 股票代码。A股示例：600519, 000001
+
+    通过通达信 TCP 协议直连获取财务核心指标，比 HTTP API 更稳定。
+    """
+    from data_sources.mootdx import _to_mootdx_code, _is_supported
+
+    if not _is_supported(code):
+        return json.dumps({"error": f"通达信不支持该代码: {code}"}, ensure_ascii=False)
+
+    mcode = _to_mootdx_code(code)
+    try:
+        from mootdx.quotes import Quotes
+        client = Quotes.factory(market="std")
+        finance = client.finance(mcode)
+
+        if not finance:
+            return json.dumps({"error": "无财务数据", "code": code}, ensure_ascii=False)
+
+        result = {
+            "code": code,
+            "source": "mootdx_tcp",
+            "finance": finance.to_dict() if hasattr(finance, 'to_dict') else str(finance),
+        }
+        return json.dumps(result, ensure_ascii=False, default=str)
+    except ImportError:
+        return json.dumps({
+            "error": "mootdx 未安装，请执行: pip install mootdx",
+            "code": code,
+        }, ensure_ascii=False)
+    except Exception as e:
+        return json.dumps({"error": str(e), "code": code}, ensure_ascii=False)
+
+
+@mcp.tool(name="get_tdx_xdxr_info")
+def get_tdx_xdxr_info(code: str) -> str:
+    """🆕 通达信除权除息信息 — 分红、配股、送转股历史记录及股本变动
+
+    Args:
+        code: 股票代码。A股示例：600519, 000001
+
+    通过通达信 TCP 协议获取完整除权除息历史。
+    """
+    from data_sources.mootdx import _to_mootdx_code, _is_supported
+
+    if not _is_supported(code):
+        return json.dumps({"error": f"通达信不支持该代码: {code}"}, ensure_ascii=False)
+
+    mcode = _to_mootdx_code(code)
+    try:
+        from mootdx.quotes import Quotes
+        client = Quotes.factory(market="std")
+        xdxr = client.xdxr(mcode)
+
+        if xdxr is None or xdxr.empty:
+            return json.dumps({"code": code, "records": [], "message": "无除权除息数据"}, ensure_ascii=False)
+
+        records = xdxr.head(20).to_dict(orient="records")
+        return json.dumps({
+            "code": code,
+            "count": len(records),
+            "records": records,
+            "source": "mootdx_tcp",
+        }, ensure_ascii=False, default=str)
+    except ImportError:
+        return json.dumps({
+            "error": "mootdx 未安装，请执行: pip install mootdx",
+            "code": code,
+        }, ensure_ascii=False)
+    except Exception as e:
+        return json.dumps({"error": str(e), "code": code}, ensure_ascii=False)
+
+
 # ── 辅助函数 ──────────────────────────────────────────────
 
 

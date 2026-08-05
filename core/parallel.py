@@ -41,7 +41,7 @@ def run_parallel(tasks: dict[str, Callable[[], Any]],
             return {name: fut.result(timeout=timeout)}
         except Exception as e:
             fut.cancel()
-            return {name: {"error": str(e) if not isinstance(e, TimeoutError) else f"超时（>{timeout}s）"}}
+            return {name: {"error": str(e)[:100] if not isinstance(e, TimeoutError) else f"超时（>{timeout}s)"}}
 
     results: dict[str, Any] = {}
     futures = {}
@@ -51,7 +51,7 @@ def run_parallel(tasks: dict[str, Callable[[], Any]],
             return name, fn()
         except Exception as e:
             logger.warning("并行任务 %s 失败: %s", name, e)
-            return name, {"error": str(e)}
+            return name, {"error": str(e)[:100]}
 
     for name, fn in tasks.items():
         futures[_executor.submit(safe_run, name, fn)] = name
@@ -63,7 +63,7 @@ def run_parallel(tasks: dict[str, Callable[[], Any]],
             _, result = future.result()
             results[name] = result
         except Exception as e:
-            results[name] = {"error": str(e)}
+            results[name] = {"error": str(e)[:100]}
 
         if len(results) == len(tasks):
             break
@@ -97,5 +97,5 @@ def parallel_map(fn: Callable, items: list, max_workers: int = 4) -> list:
         try:
             results.append(f.result())
         except Exception as e:
-            results.append({"error": str(e)})
+            results.append({"error": str(e)[:100]})
     return results

@@ -25,8 +25,12 @@ HTTP_HEADERS = {
 def _search_sina(query: str, results: list):
     """搜索新浪财经新闻"""
     try:
+        # 验证 query 参数，防止 SSRF
+        if not re.match(r'^[\w\s\-]+$', query):
+            logger.warning("Invalid query param: %s", query)
+            return
         url = f"https://search.sina.com.cn/stock/?q={query}&range=title&c=news&sort=time"
-        resp = httpx.get(url, headers=HTTP_HEADERS, timeout=15, follow_redirects=True)
+        resp = httpx.get(url, headers=HTTP_HEADERS, timeout=15, follow_redirects=False)
 
         items = re.findall(
             r'<h2[^>]*>\s*<a[^>]*href="([^"]*)"[^>]*>(.*?)</a>\s*</h2>',
@@ -61,8 +65,12 @@ def _search_sina(query: str, results: list):
 def _search_baidu_news(query: str, results: list):
     """搜索百度新闻"""
     try:
+        # 验证 query 参数，防止 SSRF
+        if not re.match(r'^[\w\s\-]+$', query):
+            logger.warning("Invalid query param: %s", query)
+            return
         url = f"https://news.baidu.com/s?tn=news&word={query}&pn=0&rn=10&cl=2&ct=1"
-        resp = httpx.get(url, headers=HTTP_HEADERS, timeout=15, follow_redirects=True)
+        resp = httpx.get(url, headers=HTTP_HEADERS, timeout=15, follow_redirects=False)
 
         items = re.findall(
             r'<h3[^>]*>.*?<a[^>]*href="([^"]*)"[^>]*>(.*?)</a>',

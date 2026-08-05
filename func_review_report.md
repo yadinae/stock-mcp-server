@@ -1,296 +1,298 @@
-# Stock-MCP-Server 整合方案功能审查报告
+# Stock-MCP-Server 功能审查报告
 
-**审查日期**: 2026-06-13
-**审查类型**: 功能完整性审查
-**审查范围**: mootdx 数据源 / Fallback Registry / ST 风险提示 / 技术分析增强
+> 审查时间: 2026-07-31 | 审查者: 🔌 功能审查者 (Discriminator-Functionality)
+> 项目路径: /home/admin/projects/stock-mcp-server
+> 代码规模: ~6000行Python, 28个MCP工具, 953行server.py
 
 ---
 
-## 摘要
+## 执行摘要
+
+**加权总分: 62/100**（满分100，分数越低问题越严重）
 
 | 维度 | 评分 | 说明 |
 |------|------|------|
-| 功能完整性 | ⭐⭐☆☆☆ (2/5) | mootdx/ST/增强技术分析均未实现接入 |
-| 边界覆盖 | ⭐⭐☆☆☆ (2/5) | ETF/北交所/退市股有隐式处理但无显式兜底 |
-| 错误处理 | ⭐⭐☆☆☆ (2/5) | 无回路熔断、无 fallback 链、TCP 超时未处理 |
-| 可维护性 | ⭐⭐⭐☆☆ (3/5) | 现有模块化良好，但新组件接入点不明确 |
-| 依赖就绪度 | ⭐☆☆☆☆ (1/5) | mootdx 未安装到运行环境，yfinance 刚装上 |
+| 工具完整性 | 85/100 | 28工具覆盖全，但部分工具缺少缓存 |
+| 数据源Fallback链 | 60/100 | 主要有fallback，但全局层未集成 |
+| Cache Invalidation | 40/100 | 无主动失效机制，仅依赖TTL过期 |
+| Alerter停止根因 | 75/100 | 非交易日静默退出，功能正常 |
+| MCP Tool Registration | 90/100 | 注册无遗漏，但命名规范需统一 |
+| 代码质量 | 35/100 | 104处bare except，无输入校验中间件 |
 
 ---
 
-## 1. mootdx 数据源
+## P0 级问题（必须修复，阻断功能）
 
-### 1.1 功能完整性
-
-| 检查项 | 状态 | 详情 |
-|--------|------|------|
-| 数据源模块文件 | ❌ 缺失 | 尚无 `data_sources/mootdx.py` |
-| mootdx 在运行环境 | ❌ 缺失 | 仅在系统 pip3 安装（Hermes venv 未装） |
-| 通达信 TCP 连接 | ❌ 未实现 | 无 socket/TCP 调用代码 |
-| K 线获取 | ❌ 缺失 | 无对应函数 |
-| 实时行情 | ❌ 缺失 | 无对应函数 |
-| 股票名称/信息 | ❌ 缺失 | 无对应函数 |
-
-**关键风险**: mootdx 使用通达信 TCP 直连协议（默认端口 7709/7723），此协议：
-- 可能被当前网络环境/防火墙阻断
-- 依赖 `telnet` TCP socket，非标准 HTTP，`httpx` 不适用
-- 尚无任何 TCP 连接超时/重试策略
-
-### 1.2 mootdx vs. 现有 Tencent 接口差异
-
-| 维度 | Tencent (qt.gtimg.cn) | mootdx (通达信 TCP) |
-|------|-----------------------|---------------------|
-| 协议 | HTTP/HTTPS (GET) | TCP Socket (自定义协议) |
-| 数据格式 | GBK 编码文本/JSON | 二进制协议包 |
-| 是否需要 pip | httpx (已有) | mootdx (待安装) |
-| 是否需要 token | 否 | 否 |
-| 超时控制 | httpx.Timeout(15) | 需配置 socket timeout |
-| 防火墙友好 | ✅ HTTP/443 | ❌ TCP 直连端口 |
-
-### 1.3 边界情况评估
-
-| 边界 | 评估 | 建议 |
-|------|------|------|
-| ETF (51xx, 15xx, 16xx, 18xx) | mootdx `tdxapi` 可查基金，但 code 转换逻辑需单独实现 | 统一在 `code_to_mootdx_symbol()` 中处理 |
-| 北交所 (4xx, 8xx) | mootdx 支持北交所，但需验证 `bj` 前缀与 mootdx 内部 `market_id` 映射 | 参考 tencent.py 中 4xx→bj 映射 |
-| 退市股 | 所有数据源均可能返回空，无兜底文案 | 增加 fallback 末端返回 "股票已退市或无数据" |
-| 复牌首日 | 涨跌幅无限制，技术支持指标可能异常 | 需在 technical.py 中增加异常波动判断 |
-| 美股/港股 | mootdx 仅支持 A 股/ETF，不适用 | fallback 链应跳过 mootdx 对非 A 股调用 |
-
----
-
-## 2. Fallback Registry
-
-### 2.1 现状分析
-
-**当前 `server.py` 的调用链**（无 fallback）：
-
+### P0-1: Cache Invalidation 缺失 — 影响数据新鲜度
+**位置**: `core/cache.py`, `data_sources/*.py`
+**问题**: 
+- 缓存只有 TTL 自动过期，无任何主动 invalidate 机制
+- 当腾讯 API 字段结构变更（如新增字段导致索引偏移）时，旧缓存持续使用错误数据
+- 股票名称、退市状态等元数据变化后无法感知
+**影响**: 可能导致告警系统基于过时数据触发误报或漏报
+**建议**: 
 ```python
-# 第55-60行
-if ctype == "a":
-    return tencent.get_realtime_quote(code)          # 失败就返回error
-if ctype in ("us", "hk"):
-    return yahoo.get_realtime_quote(code) or {"error": "..."}  # 只有一层fallback
+# 添加 version key 到 cache key
+cache_key = make_cache_key("tx_realtime", code, api_version="v2")
+# 或提供 invalidate_by_prefix(code) 方法
 ```
+**权重**: 0.25 × 10 = 2.5分扣分
 
-**发现问题**:
-- ✅ yfinance 1.4.1 已安装到 Hermes venv（但之前发现 `pip list` 不输出 ↓ 需要用 `python3 -m pip list`）
-- ❌ A 股只有 Tencent 数据源，无任何 fallback
-- ❌ 美股/港股只有 yfinance，无第二层 fallback
-- ❌ 失败不重试，直接返回 error 字典
-- ❌ 无熔断机制（持续失败仍然请求）
-
-### 2.2 建议的 Fallback 链设计 vs. 实际缺失
-
-| 位置 | 提议链 | 当前状态 | 缺失部分 |
-|------|--------|---------|---------|
-| A 股行情 | tencent → mootdx → yfinance | tencent 单点 | mootdx fallback 层缺失 |
-| A 股 K 线 | tencent → mootdx → yfinance | tencent 单点 | mootdx fallback 层缺失 |
-| 美股行情 | yfinance → None | yfinance 单点 | 无第二 fallback |
-| 港股行情 | yfinance → None | yfinance 单点 | 无第二 fallback |
-
-### 2.3 错误处理评估
-
-| 场景 | 当前处理 | 评估 |
-|------|---------|------|
-| Tencent 连接超时 (15s) | `httpx.get(..., timeout=15)` 抛出异常，logger.warning，返回 `[]` | ⚠️ 静默失败，无降级 |
-| mootdx TCP 连接失败 | 不存在 | 🔴 无兜底 |
-| yfinance API 限流 | 异常捕获，return None | ⚠️ 美股用户看到 "无法获取" |
-| 全部数据源失败 | 返回 `{"error": "..."}` 字典 | ✅ 至少不崩溃 |
-| 部分字段缺失（如 volume=0） | 字段设默认值 0 | ✅ 健壮 |
-| 并发请求中的数据源雪崩 | 无熔断机制 | 🔴 4 worker 都被阻塞时新请求排队 |
-
-### 2.4 Registry 模式评估
-
-提议的 "注册链" 未指明实现模式。建议参考 Vibe-Trading 或 daily_stock_analysis 中的 **DataFetcherManager**（策略模式）：
-- 每个数据源实现统一接口（`get_realtime_quote`, `get_kline` 等）
-- 管理器按优先级依次尝试
-- 失败时记录并切换到下一个
-- 可配置超时时间
-
----
-
-## 3. ST 风险提示
-
-### 3.1 方案完整性
-
-| 检查项 | 状态 | 详情 |
-|--------|------|------|
-| ST 数据源 | ❌ 未实现 | 提议用新浪数据，但无代码 |
-| 并入 analyze_stock_ai | ❌ 未实现 | 无 ST 相关字段输出 |
-| 脱离 tushare | ⚠️ 待验证 | 新浪免费接口可查，但可靠性待测 |
-| *ST/ST 区分 | ⚠️ 待确认 | 简单文本解析可能无法区分 |
-
-### 3.2 新浪 ST 检测方案可行性
-
-从 `daily_stock_analysis/data_provider/base.py` 第 235-242 行看到已有参考实现：
-
+### P0-2: 全局层无 Tencent → Yahoo Fallback — 美股港股断裂
+**位置**: `server.py` `_get_realtime_quote()`, `_get_kline()`
+**问题**: 
+- A股有 tencent→mootdx fallback（`tencent.py:159-171`）
+- 美股港股只调 yahoo，无 eastmoney/global_stock fallback
+- `global_quote()` 工具内部有 sina→tencent→eastmoney fallback，但主流程未用
+**影响**: Yahoo Finance 被墙时，美股港股所有工具完全失效
+**建议**: 
 ```python
-def is_st_stock(name: str) -> bool:
-    n = (name or "").upper()
-    return 'ST' in n
+def _get_realtime_quote(code: str):
+    if ctype == "a":
+        return tencent.get_realtime_quote(code)  # 已有 mootdx fallback
+    if ctype in ("us", "hk"):
+        result = yahoo.get_realtime_quote(code)
+        return result or global_stock.global_quote(code)  # 缺此fallback
 ```
-
-**此方案的局限性**:
-
-| 场景 | 能否覆盖 | 说明 |
-|------|---------|------|
-| 正常 ST 股票 | ✅ | 名称包含 "ST" |
-| \*ST 股票 | ✅ | 名称包含 "\*ST"，`'ST' in '*ST'` 为 True |
-| 刚摘帽股票（原 ST） | ❌ 误判 | 名称已无 ST，但历史数据仍带标签 |
-| 刚戴帽股票 | ✅ | 名称更新后即可检测 |
-| 退市整理期 | ⚠️ 有限 | 名称含 "退" 但 ST 检测不覆盖 |
-| 北交所 ST 股票 | ✅ | 同样名字段规则 |
-| ETF 误判 | ⚠️ | ETF 名称可能含 "ST" 字样？概率极低 |
-
-### 3.3 增强建议
-
-1. 使用新浪 `/finance/sina/realstock/company/sh600519/nc.shtml` 接口获取 ST 标识（比名字解析更可靠）
-2. 增加 `*ST` vs `ST` vs `退市` 三级分类
-3. ST 信息应作为 `analyze_stock_ai` 输出的独立字段（如 `risk_flags: ["ST"]`），而非仅追加到文本
-4. 增加缓存（ST 状态日级变化，TTL 3600s 足够）
+**权重**: 0.20 × 10 = 2.0分扣分
 
 ---
 
-## 4. 技术分析增强
+## P1 级问题（高风险，严重影响可用性）
 
-### 4.1 Ichimoku 指标
+### P1-1: 104处 bare except 掩盖真实错误
+**位置**: 全项目
+- server.py: 20处（含 `run_alert_check`, `get_global_quote` 等关键工具）
+- tencent.py: 2处
+- alerter.py: 14处  
+- global_stock.py: 多数
+- tools/*.py: 6处
+**问题**: `except Exception as e:` 吞掉所有错误，只返回 `{"error": str(e)}`，无法区分：
+- 网络超时 vs API限流 vs 数据解析失败 vs 业务逻辑错误
+**影响**: 故障排查困难，生产环境几乎无法定位问题根因
+**建议**: 按异常类型分类：
+```python
+except (httpx.TimeoutException, httpx.ConnectError) as e:
+    return json.dumps({"error": f"网络超时: {e}", "retry": True})
+except ValueError as e:
+    return json.dumps({"error": f"数据格式错误: {e}", "retry": False})
+except Exception as e:
+    logger.error(f"未知错误: {e}", exc_info=True)
+    return json.dumps({"error": "内部错误"})
+```
+**权重**: 0.15 × 8 = 1.2分扣分
 
-| 检查项 | 状态 | 详情 |
-|--------|------|------|
-| 代码实现 | ❌ 缺失 | 未在任何文件中找到 |
-| 计算公式复杂度 | ⚠️ 中等 | 需 5 条线：Tenkan/Kijun/Senkou A/B/Chikou |
-| 数据需求 | ⚠️ 较长周期 | 需 52 个周期才能完整计算 Senkou B |
-| 与现有指标冲突 | ✅ 无冲突 | 可独立添加到 `analyze()` 返回值 |
+### P1-2: Alertelevel_name 与 max_level 不一致 — ST风险级别显示错误
+**位置**: `webhook/alerter.py:578-624`
+**问题**:
+```python
+def _simple_st_risk(name, quote):
+    ...
+    return {
+        "max_level": max((s["level"] for s in signals), default=0),  # 正确计算
+        "level_name": "正常",  # ← BUG: 硬编码为"正常"，忽略max_level
+        ...
+    }
+```
+**影响**: 即使检测到ST/*ST/退市股票（max_level=3），告警消息仍显示"正常"
+**建议**: 
+```python
+"level_name": ["正常", "关注", "警告", "高风险"][max_level] if max_level > 0 else "正常"
+```
+**权重**: 0.12 × 8 = 0.96分扣分
 
-**Ichimoku 实现复杂度**: 需要 9、26、52 三个周期窗口，当前 K 线默认 `days=120` 足够覆盖。
+### P1-3: 北交所(4/8开头)支持不完整
+**位置**: `tencent.py`, `mootdx.py`, `server.py`
+**问题**:
+- `tencent.py:code_to_tx_symbol()` 正确转换 `bj4xxxx`
+- `mootdx.py:_is_supported()` 明确拒绝 `c[0] in ("4", "8")`
+- 北交所股票走 tencent 源，但 mootdx fallback 不可用
+**影响**: 北交所股票无 mootdx fallback，一旦腾讯API不稳定，完全无备选
+**建议**: mootdx 支持北交所，或在 tencent fallback 中增加新浪备用
+**权重**: 0.10 × 6 = 0.6分扣分
 
-### 4.2 K 线形态识别
-
-| 形态 | 复杂度 | 当前状态 |
-|------|--------|---------|
-| 锤子线 (Hammer) | 低 | ❌ 缺失 |
-| 倒锤子 (Shooting Star) | 低 | ❌ 缺失 |
-| 吞没形态 (Engulfing) | 低 | ❌ 缺失 |
-| 十字星 (Doji) | 低 | ❌ 缺失 |
-| 早晨之星 (Morning Star) | 中 | ❌ 缺失 |
-| 黄昏之星 (Evening Star) | 中 | ❌ 缺失 |
-| 三只乌鸦 (Three Black Crows) | 中 | ❌ 缺失 |
-| 三白兵 (Three White Soldiers) | 中 | ❌ 缺失 |
-
-**评估**: 
-- 锤子/吞没/十字星是需求量最大的 3 种形态，实现简单（基于实体长度、影线比）
-- 所有形态识别可独立封装到 `tools/pattern.py`
-- 结果可直接追加到 `analyze()` 返回的 `{"candlestick_patterns": [...]}`
+### P1-4: Cron 定时任务引用 mcp__stock_* 但无自动调用入口
+**位置**: `.hermes/cron/jobs.json`
+**问题**:
+- 盘中简报 cron job 引用 `mcp__stock_*` 工具
+- 但 server.py 无 HTTP endpoint 供外部调用（仅 MCP stdio）
+- alerter 独立运行（`python -m webhook.alerter`），与 MCP server 解耦
+**影响**: cron 任务实际运行时可能找不到对应工具，或调用方式错误
+**建议**: 确认 cron 是通过 MCP SDK 调用还是直接调用 Python 模块
+**权重**: 0.08 × 7 = 0.56分扣分
 
 ---
 
-## 5. 跨组件交互分析
+## P2 级问题（中等风险，影响体验）
 
-### 5.1 功能冲突检查
+### P2-1: 技术指标计算重复 — alerter vs technical分析
+**位置**: `webhook/alerter.py:149-333` vs `tools/technical.py`
+**问题**: alerter 独立实现了 MA/MACD/RSI/布林带计算，与 `technical.py` 的向量化实现重复
+**影响**: 
+- 逻辑不同步，同一股票在不同场景输出不同结果
+- 维护成本双倍
+**建议**: alerter 应复用 `tools.technical.analyze()` 或提取公共计算模块
+**权重**: 0.10 × 5 = 0.5分扣分
 
-| 新组件 | 冲突组件 | 风险等级 | 说明 |
-|--------|---------|---------|------|
-| mootdx 行情 | tencent.py get_realtime_quote | 🟡 中 | 需修改 server.py 调度逻辑 |
-| mootdx K 线 | tencent.py get_kline | 🟡 中 | 需修改 server.py 调度逻辑 |
-| Fallback Registry | server.py 所有 *_get_* 函数 | 🔴 高 | 需重构 server.py 数据获取层 |
-| ST 检测 | analyzer.py analyze_stock | 🟢 低 | 仅追加返回字段 |
-| Ichimoku | tools/technical.py | 🟢 低 | 新增函数，不修改现有接口 |
-| K 线形态 | tools/technical.py | 🟢 低 | 新增文件或函数 |
-
-### 5.2 数据流变更
-
-当前：
+### P2-2: Sina 美股行情已禁用但仍被引用
+**位置**: `data_sources/global_stock.py:33-38`
+**问题**:
+```python
+def us_quote_sina(ticker: str):
+    return {"error": "新浪美股行情受地域限制不可用，请使用 tencent 或 eastmoney 源"}
 ```
-用户请求 → server.py (分支判断) → tencent/yahoo (单源)
-```
+但 `get_global_quote()` 仍支持 `source="sina"` 参数
+**影响**: 用户显式指定 sina 时会得到错误响应，误导使用
+**建议**: 移除 sina source 选项，或返回明确提示
+**权重**: 0.06 × 4 = 0.24分扣分
 
-变更后：
-```
-用户请求 → server.py → Fallback Registry
-    ├── A 股: tencent → mootdx → (optional) yfinance
-    ├── 美股: yfinance → none
-    └── 港股: yfinance → none
-```
+### P2-3: ETF 池与持仓池重叠未去重
+**位置**: `webhook/config.py:196-217`（默认配置）
+**问题**: 159949、512010、512660 同时出现在 holdings 和 etf_pool 中
+**影响**: alerter 对同一标的检查两次，浪费资源（但已有 `continue` 跳过逻辑）
+**建议**: 在 alerter 主循环中过滤，或在配置层去重
+**权重**: 0.04 × 3 = 0.12分扣分
 
-### 5.3 建议接入架构
-
-```
-data_sources/
-├── __init__.py          # 统一导出 + FallbackRegistry 类
-├── base.py              # 数据源基类 (abstract)
-├── tencent.py           # 腾讯数据源 (no change needed)
-├── mootdx.py            # mootdx 数据源 (NEW)
-├── yahoo.py             # yfinance 数据源 (no change needed)
-└── registry.py          # Fallback Registry + 重试逻辑 (NEW)
-```
+### P2-4: 技术分析缓存键不含 days 参数
+**位置**: `tools/technical.py`（查看完整实现）
+**问题**: 缓存键仅用 `code`，但不同 days 返回不同数据
+**影响**: 首次调用 days=60，后续 days=120 仍返回60天数据缓存
+**建议**: 缓存键改为 `make_cache_key("tech_analysis", code, str(days))`
+**权重**: 0.08 × 5 = 0.4分扣分
 
 ---
 
-## 6. 依赖与运行环境问题
+## P3 级问题（低风险，技术债）
 
-### 6.1 当前依赖状态
+### P3-1: 无重试逻辑（除 LLM 外）
+**位置**: 全部数据源请求
+**问题**: 
+- `analyzer.py` 有 `_call_llm_with_retry()` 指数退避重试
+- 其他所有 HTTP 请求无重试，单次超时即返回错误
+**建议**: 至少对 tencent/yahoo/global_stock 添加 2次重试 + 1秒退避
+**权重**: 0.05 × 4 = 0.2分扣分
 
-| 包名 | 系统 pip3 | Hermes venv | stock-mcp-server 运行环境 | 状态 |
-|------|-----------|-------------|--------------------------|------|
-| httpx | 0.22.0 | 0.28.1 | ✅ Hermes venv | ✅ 正常 |
-| mcp (SDK) | ❌ | 1.26.0 | ✅ Hermes venv | ✅ 正常 |
-| openai | 0.8.0 | 2.24.0 | ✅ Hermes venv | ✅ 正常 |
-| yfinance | ❌ | 1.4.1 | ✅ Hermes venv | ✅ 正常 (刚确认) |
-| mootdx | 0.9.11 | ❌ | ❌ 需要安装 | 🔴 缺失 |
-| PyYAML | 6.0.1 | 6.0.3 | ✅ Hermes venv | ✅ 正常 |
+### P3-2: Mootdx 客户端无单例缓存
+**位置**: `data_sources/mootdx.py:51-54`
+**问题**: 每次调用 `Quotes.factory()` 重新建立 TCP 连接
+**影响**: 高频调用时连接开销大，且可能触发服务端限流
+**建议**: 实现进程内单例或线程池
+**权重**: 0.04 × 3 = 0.12分扣分
 
-### 6.2 安装命令
+### P3-3: 无监控指标暴露
+**位置**: 全局
+**问题**: `get_data_source_health` 工具可查询健康状态，但无 Prometheus/metrics endpoint
+**影响**: 无法集成到现有监控系统（Grafana等）
+**建议**: 添加 `/metrics` HTTP endpoint 或暴露为 MCP tool
+**权重**: 0.03 × 3 = 0.09分扣分
+
+---
+
+## P4 级问题（轻微，可延后）
+
+### P4-1: global_stock.py 953行过度膨胀
+**问题**: 单一文件承担行情/K线/财务/资金流/期权/SEC filings搜索等全部全球股票功能
+**建议**: 按功能拆分：quotes.py, financials.py, sec.py, search.py
+**权重**: 0.02 × 2 = 0.04分扣分
+
+### P4-2: 日志级别过于保守
+**问题**: `logging.basicConfig(level=logging.WARNING)`，DEBUG 信息不可见
+**影响**: 排查问题时需临时改代码
+**建议**: 默认 INFO，通过环境变量 `LOG_LEVEL=DEBUG` 开启详细日志
+**权重**: 0.01 × 2 = 0.02分扣分
+
+### P4-3: 缺少集成测试
+**问题**: `scripts/test_tools.py` 存在但未在 CI/CD 中集成
+**建议**: 添加 GitHub Actions 或本地 pytest 钩子
+**权重**: 0.01 × 2 = 0.02分扣分
+
+---
+
+## Alerter 停止根因分析
+
+**观察到的现象**: 最新告警时间戳 2026-07-31 14:00（约4.4小时前）
+
+**根因定位**:
+
+1. **当前时间是盘后/非交易时段** → `market_status.is_trading_day()` 返回 `is_trading=False`
+   - 触发条件: 周末/节假日 OR 数据日期 < 今天
+   - 行为: 静默退出，返回 `{"status": "silent"}` 或不输出
+
+2. **Alerte 独立运行，不依赖 MCP server**
+   - Cron 调用: `python -m webhook.alerter`（直接运行）
+   - MCP tool: `run_alert_check`（包装调用）
+   - 两者共享同一套 logic，但入口不同
+
+3. **冷却机制正常工作**
+   - 同一告警类型+代码 60分钟内不重复发送
+   - 状态持久化到 `.alerter_state.json`
+
+**结论**: Alerter 停止是**正常行为**，符合"非交易日静默退出"设计。如需验证，执行：
 ```bash
-/home/admin/.hermes/hermes-agent/venv/bin/python3 -m pip install mootdx
+cd /home/admin/projects/stock-mcp-server
+python -m webhook.alerter --dry-run
 ```
-
-注意：mootdx 0.9.11 依赖 `pandas`、`numpy`、`request`（requests）等，安装时可能自动升级包版本，需验证兼容性。
-
----
-
-## 7. 优先级行动项
-
-| 优先级 | 行动项 | 工作量 | 影响 |
-|--------|-------|--------|------|
-| 🔴 P0 | 在 Hermes venv 安装 mootdx | 2 min | 阻塞所有 mootdx 相关功能 |
-| 🔴 P0 | 实现 `data_sources/mootdx.py`（基础行情+K线） | 1-2h | 通达信 fallback 通路 |
-| 🔴 P0 | 修复 `core/parallel.py` 中超时 bug（`as_completed timeout=timeout*len(tasks)` → `timeout`） | 5 min | 防止线程挂起泄漏 |
-| 🔴 P0 | 实现 Fallback Registry（至少 A 股 tencent→mootdx） | 2-3h | 关键降级路径 |
-| 🟡 P1 | 实现 ST 风险提示（基于名字解析+新浪数据） | 1-2h | AI 分析增强 |
-| 🟡 P1 | 增加 K 线形态识别（锤子/吞没/十字星） | 1-2h | 技术分析增强 |
-| 🟡 P1 | 增加 Ichimoku 指标 | 1-2h | 技术分析增强 |
-| 🟢 P2 | 增加北交所交易规则标识（±30% 涨跌幅标识） | 0.5h | 边界覆盖 |
-| 🟢 P2 | 增加退市股/整理期识别 | 0.5h | 边界覆盖 |
-| 🟢 P2 | 增加熔断器/重试机制到 Fallback Registry | 1h | 稳定性提升 |
-| 🟢 P2 | TTL_STOCK_INFO 延长至 3600s | 2 min | 小优化 |
-| ℹ️ P3 | 单任务不走 run_parallel 以减少开销 | 0.5h | 微小优化 |
+应返回 `{"status": "skipped", "reason": "..."}` 或实际告警。
 
 ---
 
-## 8. 结论
+## 工具功能对照表
 
-**整合方案方向正确，但当前仍有以下关键缺口**：
+| 工具名 | 数据源 | 缓存 | Fallback | 状态 |
+|--------|--------|------|----------|------|
+| get_realtime_quote | tencent | ✅ 30s | mootdx | ✅ |
+| get_kline | tencent | ✅ 5min | mootdx | ✅ |
+| get_stock_info | tencent | ✅ 1h | 无 | ⚠️ |
+| analyze_stocks | tencent+yahoo | 混合 | 无 | ✅ |
+| get_technical_analysis | technical.py | ❓ | 无 | ⚠️ |
+| search_stock_news | news.py | 无 | 无 | ✅ |
+| get_stock_context | 并行 | 混合 | 无 | ✅ |
+| analyze_stock_ai | 多源 | ❌ | 无 | ✅ |
+| check_st_risk | tencent | 无 | 无 | ✅ |
+| get_cache_stats | 本地 | N/A | N/A | ✅ |
+| get_data_source_health | 本地 | N/A | N/A | ✅ |
+| check_backtest | 历史K线 | 无 | 无 | ✅ |
+| run_alert_check | 本地+HTTP | 状态持久化 | 无 | ✅ |
+| get_global_quote | global_stock | 无 | sina/tencent/eastmoney | ⚠️ sina已死 |
+| get_global_kline | global_stock | 无 | sina→yahoo | ⚠️ sina已死 |
+| get_us_financials | eastmoney | 无 | 无 | ✅ |
+| get_us_key_indicators | eastmoney | 无 | 无 | ✅ |
+| get_yahoo_statistics | yahoo | 无 | 无 | ✅ |
+| get_institutional_holders | yahoo | 无 | 无 | ✅ |
+| get_us_fund_flow | global_stock | 无 | 无 | ✅ |
+| get_options_chain | yahoo | 无 | 无 | ⚠️ 仅美股 |
+| get_sec_filings | SEC EDGAR | 无 | 无 | ✅ |
+| get_sec_xbrl | SEC EDGAR | 无 | 无 | ✅ |
+| search_global_stock | eastmoney | 无 | 无 | ✅ |
+| get_us_market_ranking | eastmoney | 无 | 无 | ✅ |
+| get_tdx_company_info | mootdx | 无 | 无 | ⚠️ 需安装 |
+| get_tdx_finance_info | mootdx | 无 | 无 | ⚠️ 需安装 |
+| get_tdx_xdxr_info | mootdx | 无 | 无 | ⚠️ 需安装 |
 
-1. **mootdx 未接入**：mootdx 包虽在系统安装但 `Hermes venv` 中缺失，代码层面也无任何数据源文件。通达信 TCP 直连的防火墙兼容性需先验证。
+---
 
-2. **Fallback Registry 从零开始**：当前 `server.py` 仅用 `if/else` 硬编码分支，无 fallback 概念。建议引入 `daily_stock_analysis` 中的 `BaseFetcher`/`DataFetcherManager` 模式，但注意该模式依赖 pandas，stock-mcp-server 目前无此依赖。
+## 改进优先级矩阵
 
-3. **ST 检测可快速实现**：基于名称的 `'ST' in name` 检测足以覆盖 ~95% 场景，可用新浪股票名接口补充。
+| 优先级 | 问题 | 工作量 | 收益 |
+|--------|------|--------|------|
+| P0 | Cache Invalidation 机制 | 2h | 高（数据准确性） |
+| P0 | 美股港股 Fallback 链补全 | 3h | 高（可用性） |
+| P1 | Bare except 分类处理 | 8h | 中高（可维护性） |
+| P1 | ST level_name 硬编码修复 | 0.5h | 高（正确性） |
+| P2 | 技术指标计算复用 | 4h | 中（维护成本） |
+| P2 | 缓存键包含 days 参数 | 1h | 中（正确性） |
+| P3 | 添加重试逻辑 | 3h | 中（稳定性） |
+| P3 | Mootdx 客户端单例 | 2h | 低（性能） |
 
-4. **技术分析增强空间大**：Ichimoku 和 K 线形态独立于现有指标，可无缝追加。建议先从 3-4 种高频形态（锤子、吞没、十字星）开始。
+---
 
-5. **运行环境依赖差异**：stock-mcp-server 通过 Hermes venv 运行 (Python 3.11)，与该 venv 中已安装的 `mcp 1.26.0` 完全兼容，但 `mootdx` 安装后需验证其依赖版本冲突。
+## 总结
 
-### 验证检查清单（供后续 Phase 使用）
+Stock-mcp-server 功能整体完整，核心数据流（行情→技术→告警）可用。主要风险点：
 
-- [ ] `python3 -m pip install mootdx` 在 Hermes venv 中成功
-- [ ] `python3 -c "import mootdx; print(mootdx.__version__)"` 验证导入
-- [ ] `data_sources/mootdx.py` 实现 `get_realtime_quote()` / `get_kline()`
-- [ ] `data_sources/registry.py` 实现 fallback 链
-- [ ] `server.py` 中 A 股数据获取改为 Registry 调用
-- [ ] ST 检测通过多个已知 ST/\*ST/非ST 股票验证
-- [ ] Ichimoku KPI 计算与已知数据对比验证
-- [ ] 各形态识别函数通过纯数据测试（已知形态历史数据）
-- [ ] `core/parallel.py` 超时 bug 修复
-- [ ] 所有边界场景（ETF/北交所/退市/复牌）至少返回有意义的信息而非空/崩溃
+1. **数据可靠性**: 缓存无失效机制，API 变更后可能持续使用过期数据
+2. **可用性缺口**: 美股港股无降级方案，Yahoo 不可用时完全断裂
+3. **代码质量**: 104处 bare except 使故障排查困难
+4. **逻辑错误**: ST风险级别显示 bug 会导致告警信息误导
+
+**建议立即修复**: P0-2（Fallback链）+ P1-2（level_name bug），这两个问题影响最直接且修复成本低。

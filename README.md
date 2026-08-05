@@ -1,5 +1,9 @@
 # Stock Analysis MCP Server 📈
 
+> ⚠️ **ARCHIVED (2026-08-05)** — 本地 Python 版已正式下线归档。
+> 全部 111 工具已迁移至 [yadinae/stock-mcp-gateway](https://github.com/yadinae/stock-mcp-gateway)（Cloudflare Workers）。
+> 归档 tag: `archive-2026-08-05`。本仓库仅作历史参考，不再维护。
+
 > 股票分析 MCP 服务 — A 股 + 美股 + 港股，集成技术分析、AI 分析、ST 风险检测、策略回测。
 
 ## 功能一览

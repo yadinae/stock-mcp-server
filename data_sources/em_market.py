@@ -152,24 +152,39 @@ def get_announcements(code: str, page_size: int = 30) -> dict:
 
 
 def get_stock_boards(code: str) -> dict:
-    """个股所属板块（东财 push2，本地可能 502 → 返回空但带提示）"""
+    """个股所属板块（emweb F10 CoreConception，替代 push2 — 本地 200 ✅）
+
+    东财 push2 对数据中心 IP 限流 502，emweb.securities.eastmoney.com 不受限。
+    """
     c = extract_code(code)
-    prefix = 1 if c[0] in "69" else 0
-    url = f"https://push2.eastmoney.com/api/qt/stock/get?secid={prefix}.{c}&fields=f57,f58,f127,f128,f136"
+    prefix = "SH" if c[0] in "69" else ("BJ" if c[0] in "48" else "SZ")
+    url = f"https://emweb.securities.eastmoney.com/PC_HSF10/CoreConception/PageAjax?code={prefix}{c}"
     try:
-        raw = _http_get(url, referer="https://quote.eastmoney.com/")
+        raw = _http_get(url, referer="https://emweb.securities.eastmoney.com/")
         data = json.loads(raw)
-        d = data.get("data") or {}
+        ssbk = data.get("ssbk") or []
+        # 区分行业/概念/地域（按板块名特征）
+        industries, concepts, regions = [], [], []
+        for b in ssbk:
+            name = b.get("BOARD_NAME") or ""
+            item = {"name": name, "code": b.get("BOARD_CODE") or "", "rank": b.get("BOARD_RANK") or 0}
+            if name.endswith(("Ⅱ", "Ⅲ", "Ⅰ")):
+                industries.append(item)
+            elif name.endswith("板块"):
+                regions.append(item)
+            else:
+                concepts.append(item)
         return {
             "code": c,
-            "name": d.get("f58") or "",
-            "industry": d.get("f127") or "",
-            "concept": d.get("f128") or "",
-            "region": d.get("f136") or "",
-            "source": "eastmoney_push2",
+            "name": ssbk[0].get("SECURITY_NAME_ABBR") if ssbk else "",
+            "industry": industries[0]["name"] if industries else "",
+            "concepts": concepts[:20],
+            "regions": regions[:10],
+            "total": len(ssbk),
+            "source": "emweb_f10",
         }
     except Exception as e:
-        return {"code": c, "error": f"push2 受限: {e}", "source": "eastmoney_push2"}
+        return {"code": c, "error": f"emweb 板块获取失败: {e}", "source": "emweb_f10"}
 
 
 def get_industry_rank_tv(top_n: int = 20) -> dict:
@@ -313,15 +328,44 @@ def get_market_hot_stocks(date_str: str = "") -> dict:
 
 
 def get_convertible_bonds(page_size: int = 20) -> dict:
-    """可转债列表（东财 datacenter，本地 200 ✅）"""
-    data = _datacenter(
-        "RPT_BOND_CB_LIST", "",
-        page_size=min(page_size, 100), sort_columns="", sort_types="",
-    )
-    bonds = [{
-        "code": r.get("SECURITY_CODE") or r.get("BOND_CODE") or "",
-        "name": r.get("SECURITY_NAME_ABBR") or r.get("BOND_ABBR") or "",
-        "price": r.get("LATEST_PRICE") or r.get("CLOSE_PRICE") or 0,
-        "premium_rate": r.get("CONVERT_PREMIUM_RATIO") or r.get("PREMIUM_RATE") or 0,
-    } for r in data]
-    return {"total": len(bonds), "bonds": bonds[:page_size]}
+    """可转债列表（东财 datacenter RPT_BOND_CB_LIST，按上市日期倒序 — 本地 200 ✅）
+
+    Gateway 同款: sortColumns=PUBLIC_START_DATE&sortTypes=-1 + quoteColumns 实时价
+    """
+    size = min(max(int(page_size or 20), 1), 100)
+    quote_cols = ("f2~01~CONVERT_STOCK_CODE~CONVERT_STOCK_PRICE,"
+                  "f235~10~SECURITY_CODE~TRANSFER_PRICE,"
+                  "f236~10~SECURITY_CODE~TRANSFER_VALUE,"
+                  "f2~10~SECURITY_CODE~CURRENT_BOND_PRICE,"
+                  "f237~10~SECURITY_CODE~TRANSFER_PREMIUM_RATIO,"
+                  "f239~10~SECURITY_CODE~RESALE_TRIG_PRICE,"
+                  "f240~10~SECURITY_CODE~REDEEM_TRIG_PRICE,"
+                  "f23~01~CONVERT_STOCK_CODE~PBV_RATIO")
+    params = {
+        "pageSize": str(size), "pageNumber": "1",
+        "sortColumns": "PUBLIC_START_DATE", "sortTypes": "-1",
+        "reportName": "RPT_BOND_CB_LIST", "columns": "ALL",
+        "quoteColumns": quote_cols,
+        "source": "WEB", "client": "WEB",
+    }
+    try:
+        url = DATACENTER_API + "?" + urllib.parse.urlencode(params)
+        raw = _http_get(url, referer="https://data.eastmoney.com/")
+        data = json.loads(raw)
+        rows = (data.get("result") or {}).get("data") or []
+        bonds = [{
+            "bond_code": r.get("SECURITY_CODE") or "",
+            "bond_abbr": r.get("SECURITY_NAME_ABBR") or "",
+            "stock_code": r.get("CONVERT_STOCK_CODE") or "",
+            "convert_price": r.get("TRANSFER_PRICE") or 0,
+            "convert_value": r.get("TRANSFER_VALUE") or 0,
+            "bond_price": r.get("CURRENT_BOND_PRICE") or 0,
+            "premium_rate": r.get("TRANSFER_PREMIUM_RATIO") or 0,
+            "resale_trig_price": r.get("RESALE_TRIG_PRICE") or 0,
+            "redeem_trig_price": r.get("REDEEM_TRIG_PRICE") or 0,
+            "pbv": r.get("PBV_RATIO") or 0,
+            "list_date": r.get("PUBLIC_START_DATE") or "",
+        } for r in rows[:size]]
+        return {"total": len(bonds), "bonds": bonds}
+    except Exception as e:
+        return {"error": f"可转债接口异常: {e}", "bonds": []}

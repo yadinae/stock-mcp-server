@@ -38,6 +38,7 @@ from data_sources import kraken
 from data_sources import binance as binance_source
 from core import store as local_store
 from tools import portfolio as portfolio_tools
+from tools import aggregate as aggregate_tools
 from tools.technical import analyze as analyze_technical
 from tools.news import search_news
 from tools.analyzer import analyze_stock as ai_analyze
@@ -1362,6 +1363,65 @@ def watchlist_brief(watchlist_id: int) -> str:
     }, ensure_ascii=False, default=str)
 
 
+# ═══════════════════════════════════════════════════════════════
+# 聚合工具（cache_warmup / market_overview / market_regime / sector_rotation / stock_finder）
+# ═══════════════════════════════════════════════════════════════
+
+
+@mcp.tool(name="cache_warmup")
+def cache_warmup(codes: str = "") -> str:
+    """缓存预热 — 预取热门股票数据到缓存，减少首次查询延迟。
+
+    Args:
+        codes: 可选，JSON数组自定义股票代码列表，如 ["600519","AAPL"]
+    """
+    pool = None
+    if codes and codes.strip():
+        try:
+            pool = json.loads(codes) if codes.strip().startswith("[") else [c.strip() for c in codes.replace("，", ",").split(",") if c.strip()]
+        except Exception:
+            pool = None
+    return json.dumps(aggregate_tools.cache_warmup(pool), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="market_overview")
+def market_overview() -> str:
+    """全市场总览 — A股主要指数行情 + 行业板块强弱排名 + 美股三大指数。"""
+    return json.dumps(aggregate_tools.market_overview(), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="market_regime")
+def market_regime() -> str:
+    """市场状态判断 — 指数趋势(MA20/MA60) + 成交量 + 行业宽度 → bull/bear/oscillate。"""
+    return json.dumps(aggregate_tools.market_regime(), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="sector_rotation")
+def sector_rotation() -> str:
+    """板块轮动追踪 — 全行业涨跌排名及动量变化。"""
+    return json.dumps(aggregate_tools.sector_rotation(), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="stock_finder")
+def stock_finder(strategy: str = "etf", max_results: int = 5, risk_tolerance: str = "medium",
+                 holdings: str = "") -> str:
+    """股票/ETF 推荐 — 策略选股 + 本地行情评分。
+
+    Args:
+        strategy: value(低估)/momentum(动量)/etf(ETF)/reversal(反转)
+        max_results: 最大返回数量
+        risk_tolerance: low/medium/high
+        holdings: 当前持仓（JSON数组，可选，用于排除）
+    """
+    h = None
+    if holdings and holdings.strip():
+        try:
+            h = json.loads(holdings) if holdings.strip().startswith("[") else [x.strip() for x in holdings.replace("，", ",").split(",") if x.strip()]
+        except Exception:
+            h = None
+    return json.dumps(aggregate_tools.stock_finder(strategy, max_results, risk_tolerance, h), ensure_ascii=False, default=str)
+
+
 # ── 辅助函数 ──────────────────────────────────────────────
 
 
@@ -1401,4 +1461,15 @@ def _detect_secid_prefix(code: str) -> int:
 
 
 if __name__ == "__main__":
-    mcp.run()
+    import os
+    mode = os.environ.get("STOCK_MCP_MODE", "stdio")
+    port = int(os.environ.get("STOCK_MCP_PORT", "8902"))
+    if mode == "http":
+        # streamable HTTP 模式（供 cron 脚本 / Hermes 远程调用）
+        import uvicorn
+        from mcp.server.fastmcp import FastMCP
+        mcp.settings.host = "127.0.0.1"
+        mcp.settings.port = port
+        uvicorn.run(mcp.streamable_http_app(), host="127.0.0.1", port=port, log_level="warning")
+    else:
+        mcp.run()

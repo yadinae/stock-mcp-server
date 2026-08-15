@@ -1150,11 +1150,11 @@ def get_top_crypto(sort_by: str = "volume", limit: int = 10) -> str:
 
 
 @mcp.tool(name="portfolio_risk_diagnosis")
-def portfolio_risk_diagnosis(holdings: str) -> str:
+def portfolio_risk_diagnosis(holdings=None) -> str:
     """组合风险诊断 — 持仓集中度、行业暴露、跨市场分布、浮动盈亏。
 
     Args:
-        holdings: 持仓 JSON 字符串，如 [{"code":"600519","shares":100,"cost_price":1500}]
+        holdings: 持仓 JSON 字符串或数组，如 [{"code":"600519","shares":100,"cost_price":1500}]
     """
     try:
         h = json.loads(holdings) if isinstance(holdings, str) else holdings
@@ -1179,11 +1179,11 @@ def portfolio_correlation(codes: str, days: int = 60) -> str:
 
 
 @mcp.tool(name="portfolio_full_report")
-def portfolio_full_report(holdings: str, days: int = 60) -> str:
+def portfolio_full_report(holdings=None, days: int = 60) -> str:
     """综合组合报告 — 行情摘要 + 集中度 + 行业暴露 + 相关性矩阵。
 
     Args:
-        holdings: 持仓 JSON 字符串
+        holdings: 持仓 JSON 字符串或数组
         days: 分析天数
     """
     try:
@@ -1194,11 +1194,11 @@ def portfolio_full_report(holdings: str, days: int = 60) -> str:
 
 
 @mcp.tool(name="portfolio_rebalance")
-def portfolio_rebalance(holdings: str, max_single_weight: float = 40) -> str:
+def portfolio_rebalance(holdings=None, max_single_weight: float = 40) -> str:
     """组合调仓建议 — 仓位调整 + 行业分散优化。
 
     Args:
-        holdings: 持仓 JSON 字符串
+        holdings: 持仓 JSON 字符串或数组
         max_single_weight: 单标的权重上限(%)
     """
     try:
@@ -1209,11 +1209,11 @@ def portfolio_rebalance(holdings: str, max_single_weight: float = 40) -> str:
 
 
 @mcp.tool(name="portfolio_signal")
-def portfolio_signal(holdings: str) -> str:
+def portfolio_signal(holdings=None) -> str:
     """组合调仓信号 — urgency(high/medium/low) + 建议。
 
     Args:
-        holdings: 持仓 JSON 字符串
+        holdings: 持仓 JSON 字符串或数组
     """
     try:
         h = json.loads(holdings) if isinstance(holdings, str) else holdings

@@ -35,6 +35,9 @@ from data_sources import em_f10
 from data_sources import em_market
 from data_sources import danjuan_csindex
 from data_sources import kraken
+from data_sources import binance as binance_source
+from core import store as local_store
+from tools import portfolio as portfolio_tools
 from tools.technical import analyze as analyze_technical
 from tools.news import search_news
 from tools.analyzer import analyze_stock as ai_analyze
@@ -1093,18 +1096,18 @@ def get_index_perf(code: str, days: int = 30) -> str:
 
 
 # ═══════════════════════════════════════════════════════════════
-# 加密货币（Kraken，移植自 Gateway sources/binance.ts — 实际走 Kraken）
+# 加密货币（Binance 主源 + Kraken 兜底，VPS 实测 Binance 200 ✅）
 # ═══════════════════════════════════════════════════════════════
 
 
 @mcp.tool(name="get_crypto_quote")
 def get_crypto_quote(symbol: str) -> str:
-    """数字货币实时行情（Kraken 公开 API，无需 Key）。
+    """数字货币实时行情（Binance 公开 API，无需 Key；失败自动降级 Kraken）。
 
     Args:
         symbol: 币种代码，如 BTCUSDT / ETHUSDT / SOLUSDT
     """
-    return json.dumps(kraken.get_crypto_quote(symbol), ensure_ascii=False, default=str)
+    return json.dumps(binance_source.get_crypto_quote(symbol), ensure_ascii=False, default=str)
 
 
 @mcp.tool(name="get_crypto_quotes")
@@ -1114,33 +1117,267 @@ def get_crypto_quotes(symbols: str) -> str:
     Args:
         symbols: 逗号分隔的币种代码
     """
-    return json.dumps(kraken.get_crypto_quotes(symbols), ensure_ascii=False, default=str)
+    return json.dumps(binance_source.get_crypto_quotes(symbols), ensure_ascii=False, default=str)
 
 
 @mcp.tool(name="get_crypto_kline")
 def get_crypto_kline(symbol: str, interval: str = "1d", limit: int = 60) -> str:
-    """数字货币 K 线（Kraken OHLC）。
+    """数字货币 K 线（Binance klines）。
 
     Args:
         symbol: 币种代码
-        interval: 1m/5m/15m/30m/1h/4h/1d/1w
+        interval: 1m/5m/15m/30m/1h/4h/1d/1w/1M
         limit: 返回条数
     """
-    return json.dumps(kraken.get_crypto_kline(symbol, interval, limit), ensure_ascii=False, default=str)
+    return json.dumps(binance_source.get_crypto_kline(symbol, interval, limit), ensure_ascii=False, default=str)
 
 
 @mcp.tool(name="get_top_crypto")
 def get_top_crypto(sort_by: str = "volume", limit: int = 10) -> str:
-    """热门数字货币排行（Kraken 主流币）。
+    """热门数字货币排行（Binance 24hr 全市场）。
 
     Args:
         sort_by: volume(成交量) / change(涨跌幅)
         limit: 返回条数
     """
-    return json.dumps(kraken.get_top_crypto(sort_by, limit), ensure_ascii=False, default=str)
+    return json.dumps(binance_source.get_top_crypto(sort_by, limit), ensure_ascii=False, default=str)
+
+
+# ═══════════════════════════════════════════════════════════════
+# 组合诊断（移植自 Gateway tools/portfolio.ts）
+# ═══════════════════════════════════════════════════════════════
+
+
+@mcp.tool(name="portfolio_risk_diagnosis")
+def portfolio_risk_diagnosis(holdings: str) -> str:
+    """组合风险诊断 — 持仓集中度、行业暴露、跨市场分布、浮动盈亏。
+
+    Args:
+        holdings: 持仓 JSON 字符串，如 [{"code":"600519","shares":100,"cost_price":1500}]
+    """
+    try:
+        h = json.loads(holdings) if isinstance(holdings, str) else holdings
+    except Exception:
+        return json.dumps({"error": "holdings 必须是合法 JSON"}, ensure_ascii=False)
+    return json.dumps(portfolio_tools.portfolio_risk_diagnosis(h), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="portfolio_correlation")
+def portfolio_correlation(codes: str, days: int = 60) -> str:
+    """持仓相关性矩阵 — 计算组合内各持仓两两 Pearson 相关系数。
+
+    Args:
+        codes: JSON数组或逗号分隔字符串，如 ["600519","000001"] 或 "600519,000001"
+        days: 分析天数
+    """
+    try:
+        c = json.loads(codes) if isinstance(codes, str) and codes.strip().startswith("[") else [x.strip() for x in codes.replace("，", ",").split(",") if x.strip()]
+    except Exception:
+        c = [x.strip() for x in codes.replace("，", ",").split(",") if x.strip()]
+    return json.dumps(portfolio_tools.portfolio_correlation(c, days), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="portfolio_full_report")
+def portfolio_full_report(holdings: str, days: int = 60) -> str:
+    """综合组合报告 — 行情摘要 + 集中度 + 行业暴露 + 相关性矩阵。
+
+    Args:
+        holdings: 持仓 JSON 字符串
+        days: 分析天数
+    """
+    try:
+        h = json.loads(holdings) if isinstance(holdings, str) else holdings
+    except Exception:
+        return json.dumps({"error": "holdings 必须是合法 JSON"}, ensure_ascii=False)
+    return json.dumps(portfolio_tools.portfolio_full_report(h, days), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="portfolio_rebalance")
+def portfolio_rebalance(holdings: str, max_single_weight: float = 40) -> str:
+    """组合调仓建议 — 仓位调整 + 行业分散优化。
+
+    Args:
+        holdings: 持仓 JSON 字符串
+        max_single_weight: 单标的权重上限(%)
+    """
+    try:
+        h = json.loads(holdings) if isinstance(holdings, str) else holdings
+    except Exception:
+        return json.dumps({"error": "holdings 必须是合法 JSON"}, ensure_ascii=False)
+    return json.dumps(portfolio_tools.portfolio_rebalance(h, max_single_weight), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="portfolio_signal")
+def portfolio_signal(holdings: str) -> str:
+    """组合调仓信号 — urgency(high/medium/low) + 建议。
+
+    Args:
+        holdings: 持仓 JSON 字符串
+    """
+    try:
+        h = json.loads(holdings) if isinstance(holdings, str) else holdings
+    except Exception:
+        return json.dumps({"error": "holdings 必须是合法 JSON"}, ensure_ascii=False)
+    return json.dumps(portfolio_tools.portfolio_signal(h), ensure_ascii=False, default=str)
+
+
+# ═══════════════════════════════════════════════════════════════
+# 交易日志（本地 SQLite 存储）
+# ═══════════════════════════════════════════════════════════════
+
+
+@mcp.tool(name="trade_journal_open")
+def trade_journal_open(symbol: str, shares: float, entry_price: float, strategy: str = "",
+                       rationale: str = "", side: str = "long", name: str = "") -> str:
+    """开仓 — 记录一笔交易。
+
+    Args:
+        symbol: 代码
+        shares: 股数
+        entry_price: 成交价
+        strategy: 策略标签
+        rationale: 理由
+        side: long/short
+        name: 名称
+    """
+    return json.dumps(local_store.trade_open(symbol, shares, entry_price, strategy, rationale, side, name), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="trade_journal_close")
+def trade_journal_close(id: int, exit_price: float, notes: str = "") -> str:
+    """平仓 — 关闭一笔持仓并计算盈亏。
+
+    Args:
+        id: 交易ID
+        exit_price: 卖出价
+        notes: 备注
+    """
+    return json.dumps(local_store.trade_close(id, exit_price, notes), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="trade_journal_list")
+def trade_journal_list(status: str = "", strategy: str = "", symbol: str = "") -> str:
+    """交易查询 — 按状态/策略/标的筛选。
+
+    Args:
+        status: open/closed
+        strategy: 策略
+        symbol: 代码
+    """
+    return json.dumps(local_store.trade_list(status, strategy, symbol), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="trade_journal_stats")
+def trade_journal_stats() -> str:
+    """交易统计 — 胜率、总盈亏、按策略聚合。"""
+    return json.dumps(local_store.trade_stats(), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="trade_journal_update")
+def trade_journal_update(id: int, notes: str = "", strategy: str = "", rationale: str = "", entry_price: float = 0) -> str:
+    """交易更新 — 修改备注/策略/理由。
+
+    Args:
+        id: 交易ID
+        notes/strategy/rationale/entry_price: 可更新字段
+    """
+    return json.dumps(local_store.trade_update(id, notes, strategy, rationale, entry_price), ensure_ascii=False, default=str)
+
+
+# ═══════════════════════════════════════════════════════════════
+# 观察清单（本地 SQLite 存储）
+# ═══════════════════════════════════════════════════════════════
+
+
+@mcp.tool(name="watchlist_create")
+def watchlist_create(name: str, description: str = "") -> str:
+    """创建观察清单。
+
+    Args:
+        name: 清单名称
+        description: 描述
+    """
+    return json.dumps(local_store.watchlist_create(name, description), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="watchlist_add")
+def watchlist_add(watchlist_id: int, symbols: str) -> str:
+    """添加标的到观察清单。
+
+    Args:
+        watchlist_id: 清单ID
+        symbols: 代码，逗号分隔或JSON数组
+    """
+    try:
+        s = json.loads(symbols) if isinstance(symbols, str) and symbols.strip().startswith("[") else symbols
+    except Exception:
+        s = symbols
+    return json.dumps(local_store.watchlist_add(watchlist_id, s), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="watchlist_remove")
+def watchlist_remove(watchlist_id: int, symbol: str) -> str:
+    """从观察清单移除标的。
+
+    Args:
+        watchlist_id: 清单ID
+        symbol: 代码
+    """
+    return json.dumps(local_store.watchlist_remove(watchlist_id, symbol), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="watchlist_list")
+def watchlist_list() -> str:
+    """查看所有观察清单。"""
+    return json.dumps(local_store.watchlist_list(), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="watchlist_brief")
+def watchlist_brief(watchlist_id: int) -> str:
+    """生成观察清单实时简报。
+
+    Args:
+        watchlist_id: 清单ID
+    """
+    symbols = local_store.watchlist_get_items(watchlist_id)
+    if not symbols:
+        return json.dumps({"error": f"观察清单 {watchlist_id} 无标的"}, ensure_ascii=False)
+    quotes = []
+    up = down = 0
+    for s in symbols:
+        q = _safe_quote(s)
+        quotes.append(q)
+        if q.get("change_pct", 0) > 0:
+            up += 1
+        elif q.get("change_pct", 0) < 0:
+            down += 1
+    quotes.sort(key=lambda x: x.get("change_pct", 0), reverse=True)
+    return json.dumps({
+        "watchlist_id": watchlist_id,
+        "total": len(quotes),
+        "up_count": up, "down_count": down,
+        "top_gainer": quotes[0] if quotes else None,
+        "top_loser": quotes[-1] if quotes else None,
+        "quotes": quotes,
+    }, ensure_ascii=False, default=str)
 
 
 # ── 辅助函数 ──────────────────────────────────────────────
+
+
+def _safe_quote(code: str) -> dict:
+    """安全获取行情（供 watchlist_brief 使用），失败返回最小结构"""
+    try:
+        q = tencent.get_realtime_quote(code)
+        return {
+            "code": code,
+            "name": q.get("name") or code,
+            "price": q.get("price") or 0,
+            "change_pct": q.get("change_pct") or 0,
+            "source": q.get("source") or "",
+        }
+    except Exception:
+        return {"code": code, "name": code, "price": 0, "change_pct": 0}
 
 
 def _code_to_secid(code: str) -> str:

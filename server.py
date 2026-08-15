@@ -32,6 +32,7 @@ from core.cache import get_cache
 from core.parallel import run_parallel, parallel_map
 from data_sources import tencent, yahoo
 from data_sources import em_f10
+from data_sources import em_market
 from tools.technical import analyze as analyze_technical
 from tools.news import search_news
 from tools.analyzer import analyze_stock as ai_analyze
@@ -870,6 +871,124 @@ def get_management_team(code: str) -> str:
         code: 股票代码，如 600519
     """
     return json.dumps(em_f10.get_management_team(code), ensure_ascii=False, default=str)
+
+
+# ═══════════════════════════════════════════════════════════════
+# 东财市场数据系列（移植自 Gateway em_market_lhb/em_fundflow/em_blocks/em_reports/cninfo/em_limitup/ths_hot）
+# ═══════════════════════════════════════════════════════════════
+
+
+@mcp.tool(name="get_market_lhb")
+def get_market_lhb(date: str = "", min_net_buy: float = 0) -> str:
+    """全市场龙虎榜 — 当日所有上榜股票，含上榜原因、净买入、换手率。
+
+    Args:
+        date: 日期 YYYY-MM-DD（默认今天）
+        min_net_buy: 净买入下限(万元)，可选
+    """
+    return json.dumps(em_market.get_market_lhb(date, min_net_buy), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="get_lockup_calendar")
+def get_lockup_calendar(code: str) -> str:
+    """个股限售解禁日历 — 历史解禁 + 未来90天待解禁。
+
+    Args:
+        code: 股票代码
+    """
+    return json.dumps(em_market.get_lockup_calendar(code), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="get_research_reports")
+def get_research_reports(code: str, pages: int = 1) -> str:
+    """个股研报列表 — 研报标题、机构、评级。
+
+    Args:
+        code: 股票代码
+        pages: 页数（每页20条）
+    """
+    return json.dumps(em_market.get_research_reports(code, pages), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="get_announcements")
+def get_announcements(code: str, page_size: int = 30) -> str:
+    """个股公告全文检索（巨潮）。
+
+    Args:
+        code: 股票代码
+        page_size: 返回条数
+    """
+    return json.dumps(em_market.get_announcements(code, page_size), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="get_stock_boards")
+def get_stock_boards(code: str) -> str:
+    """个股所属板块 — 行业/概念/地域。
+
+    Args:
+        code: 股票代码
+    """
+    return json.dumps(em_market.get_stock_boards(code), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="get_industry_rank")
+def get_industry_rank(top_n: int = 20) -> str:
+    """全行业涨跌幅排名（TV REST 数据源，东财 push2 对数据中心IP限流时的替代）。
+
+    Args:
+        top_n: 返回前N名
+    """
+    return json.dumps(em_market.get_industry_rank_tv(top_n), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="get_tv_industry_rank")
+def get_tv_industry_rank(top_n: int = 20) -> str:
+    """TV REST 行业涨跌排名（英文GICS分类）。
+
+    Args:
+        top_n: 返回前N名
+    """
+    return json.dumps(em_market.get_industry_rank_tv(top_n), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="get_tv_market_list")
+def get_tv_market_list(top_n: int = 100) -> str:
+    """TV REST 大盘股列表（按市值排序）。
+
+    Args:
+        top_n: 返回前N名
+    """
+    return json.dumps(em_market.get_tv_market_list(top_n), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="get_tv_quote")
+def get_tv_quote(code: str) -> str:
+    """TV REST 个股行情（A股）。
+
+    Args:
+        code: 6位A股代码
+    """
+    return json.dumps(em_market.get_tv_quote(code), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="get_market_hot_stocks")
+def get_market_hot_stocks(date: str = "") -> str:
+    """当日强势股清单及题材归因（同花顺热点）。
+
+    Args:
+        date: 日期 YYYYMMDD（默认今天）
+    """
+    return json.dumps(em_market.get_market_hot_stocks(date), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="get_convertible_bonds")
+def get_convertible_bonds(page_size: int = 20) -> str:
+    """可转债列表 — 代码/名称/价格/溢价率。
+
+    Args:
+        page_size: 返回条数
+    """
+    return json.dumps(em_market.get_convertible_bonds(page_size), ensure_ascii=False, default=str)
 
 
 # ── 辅助函数 ──────────────────────────────────────────────

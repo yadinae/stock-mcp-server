@@ -34,6 +34,7 @@ from data_sources import tencent, yahoo
 from data_sources import em_f10
 from data_sources import em_market
 from data_sources import danjuan_csindex
+from data_sources import kraken
 from tools.technical import analyze as analyze_technical
 from tools.news import search_news
 from tools.analyzer import analyze_stock as ai_analyze
@@ -1089,6 +1090,54 @@ def get_index_perf(code: str, days: int = 30) -> str:
         days: 返回天数
     """
     return json.dumps(danjuan_csindex.index_perf(code, days), ensure_ascii=False, default=str)
+
+
+# ═══════════════════════════════════════════════════════════════
+# 加密货币（Kraken，移植自 Gateway sources/binance.ts — 实际走 Kraken）
+# ═══════════════════════════════════════════════════════════════
+
+
+@mcp.tool(name="get_crypto_quote")
+def get_crypto_quote(symbol: str) -> str:
+    """数字货币实时行情（Kraken 公开 API，无需 Key）。
+
+    Args:
+        symbol: 币种代码，如 BTCUSDT / ETHUSDT / SOLUSDT
+    """
+    return json.dumps(kraken.get_crypto_quote(symbol), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="get_crypto_quotes")
+def get_crypto_quotes(symbols: str) -> str:
+    """批量数字货币实时行情（逗号分隔，最多10个）。
+
+    Args:
+        symbols: 逗号分隔的币种代码
+    """
+    return json.dumps(kraken.get_crypto_quotes(symbols), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="get_crypto_kline")
+def get_crypto_kline(symbol: str, interval: str = "1d", limit: int = 60) -> str:
+    """数字货币 K 线（Kraken OHLC）。
+
+    Args:
+        symbol: 币种代码
+        interval: 1m/5m/15m/30m/1h/4h/1d/1w
+        limit: 返回条数
+    """
+    return json.dumps(kraken.get_crypto_kline(symbol, interval, limit), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="get_top_crypto")
+def get_top_crypto(sort_by: str = "volume", limit: int = 10) -> str:
+    """热门数字货币排行（Kraken 主流币）。
+
+    Args:
+        sort_by: volume(成交量) / change(涨跌幅)
+        limit: 返回条数
+    """
+    return json.dumps(kraken.get_top_crypto(sort_by, limit), ensure_ascii=False, default=str)
 
 
 # ── 辅助函数 ──────────────────────────────────────────────

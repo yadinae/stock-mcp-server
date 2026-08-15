@@ -29,9 +29,8 @@ TTL_AI_ANALYSIS = 0     # AI 分析：不缓存（每次可能不同）
 class TTLCache:
     """线程安全的 TTL 缓存"""
 
-    def __init__(self, default_ttl: int = 60, max_size: int = 10000):
+    def __init__(self, default_ttl: int = 60):
         self._default_ttl = default_ttl
-        self._max_size = max_size
         self._store: dict[str, tuple[float, Any]] = {}
         self._lock = threading.Lock()
         self._hits = 0
@@ -53,13 +52,9 @@ class TTLCache:
             return value
 
     def set(self, key: str, value: Any, ttl: Optional[int] = None) -> None:
-        """设置缓存，超过 max_size 时驱逐最旧条目"""
+        """设置缓存"""
         expire_at = time.monotonic() + (ttl if ttl is not None else self._default_ttl)
         with self._lock:
-            # 如果达到上限，驱逐最旧的条目
-            if len(self._store) >= self._max_size:
-                oldest_key = min(self._store, key=lambda k: self._store[k][0])
-                del self._store[oldest_key]
             self._store[key] = (expire_at, value)
 
     def get_or_compute(self, key: str, compute: Callable[[], Any],

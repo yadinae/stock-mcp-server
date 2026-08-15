@@ -1,0 +1,56 @@
+{
+  "holdings": [
+    {
+      "code": "510200",
+      "name": "上证券商ETF",
+      "shares": 3500,
+      "cost_price": 1.455
+    },
+    {
+      "code": "512010",
+      "name": "医药ETF",
+      "shares": 12800,
+      "cost_price": 0.724
+    },
+    {
+      "code": "512660",
+      "name": "军工ETF",
+      "shares": 900,
+      "cost_price": 1.478
+    },
+    {
+      "code": "159949",
+      "name": "创业板50ETF",
+      "shares": 6900,
+      "cost_price": 1.145
+    }
+  ],
+  "watchlist": [
+    {
+      "code": "603310"
+    }
+  ],
+  "price_drop": {
+    "enabled": true,
+    "thresholds": [
+      -3,
+      -5,
+      -8
+    ]
+  },
+  "volume_spike": {
+    "enabled": true
+  },
+  "st_risk": {
+    "enabled": true,
+    "min_level": 2
+  },
+  "etf_signal": {
+    "enabled": true,
+    "min_score": 0
+  },
+  "_source": "2026-08-08 持仓截图识别（qwen3.7-plus 多模态 + OCR 交叉验证）",
+  "_codes_verified": "510200=上证券商 512010=医药ETF 512660=军工ETF 159949=创业板50ETF",
+  "_ocr_note": "股票名称OCR模糊，代码基于市值/现价反推+常见ETF推断；上证证券商疑为512880证券ETF",
+  "_code_note": "第1行510200经用户确认"
+}

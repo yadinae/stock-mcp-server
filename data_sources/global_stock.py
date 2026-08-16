@@ -225,9 +225,12 @@ def global_quote(code: str) -> dict[str, Any]:
     """统一美股/港股行情入口（自动选择最优数据源）
     
     Args:
-        code: "AAPL" (美股) / "00700" (港股, 5位)
+        code: "AAPL" (美股) / "00700" (港股, 5位) / ".DJI" ".IXIC" ".INX"（美国指数，兼容 Gateway 带点风格）
     """
     code = code.strip().upper()
+    # 2026-08-16: Gateway 兼容 — 美股指数带点前缀（.DJI/.IXIC/.INX）时去掉点
+    if code.startswith("."):
+        code = code[1:]
     if code.isalpha() and len(code) <= 5:
         # 美股
         result = us_quote_sina(code)

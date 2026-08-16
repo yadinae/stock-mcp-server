@@ -44,6 +44,9 @@ from tools.news import search_news
 from tools.analyzer import analyze_stock as ai_analyze
 from tools.st_risk import get_st_risk
 from tools.backtest import run_backtest, list_backtest_strategies
+from tools import advanced as advanced_tools
+from data_sources import em_fundflow
+from data_sources import sina_financial
 
 logging.basicConfig(
     level=logging.WARNING,
@@ -944,7 +947,18 @@ def get_industry_rank(top_n: int = 20) -> str:
     Args:
         top_n: 返回前N名
     """
-    return json.dumps(em_market.get_industry_rank_tv(top_n), ensure_ascii=False, default=str)
+    # 输出 Gateway 兼容结构 {total, top:[{name,change_pct,...}], bottom:[...]} —
+    # 2026-08-16 迁移: 雪球 collect_industry/collect_market_data 依赖 name/change_pct 字段
+    r = em_market.get_industry_rank_tv(top_n)
+    if isinstance(r, dict) and r.get("top") and r.get("total"):
+        rows = [{"name": x.get("industry", ""), "change_pct": x.get("avg_change_pct", 0),
+                 "count": x.get("count", 0), "up_count": x.get("up_count", 0),
+                 "down_count": x.get("down_count", 0)} for x in r["top"]]
+        n = min(max(int(top_n or 20), 1), len(rows))
+        return json.dumps({"source": r.get("source"), "total": len(rows),
+                           "top": rows[:n], "bottom": rows[-n:]},
+                          ensure_ascii=False, default=str)
+    return json.dumps(r, ensure_ascii=False, default=str)
 
 
 @mcp.tool(name="get_tv_industry_rank")
@@ -995,6 +1009,36 @@ def get_convertible_bonds(page_size: int = 20) -> str:
         page_size: 返回条数
     """
     return json.dumps(em_market.get_convertible_bonds(page_size), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="analyze_limitup_tiers")
+def analyze_limitup_tiers() -> str:
+    """涨停梯队分析 — 首板/二连板/三连板及以上/炸板分类 + 市场统计（涨停总数/炸板率/最高连板）。
+
+    数据源: 东财 datacenter 涨停股 + 腾讯K线连板判断（本地 200 ✅）
+    """
+    return json.dumps(em_market.get_limitup_tiers(), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="get_wallstreetcn_news")
+def get_wallstreetcn_news(limit: int = 10, mode: str = "all") -> str:
+    """华尔街见闻快讯 — 7x24 快讯 + 热门文章 + 最新文章摘要。
+
+    Args:
+        limit: 每类返回条数（默认10，最大30）
+        mode: all | live | hot | articles
+    """
+    return json.dumps(em_market.get_wallstreetcn_news(limit, mode), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="get_industry_fund_flow")
+def get_industry_fund_flow(top_n: int = 20) -> str:
+    """行业板块资金流向排名（主力净流入，东财 push2 502 时用腾讯板块接口替代）。
+
+    Args:
+        top_n: 返回前N个行业（默认20，最大50）
+    """
+    return json.dumps(em_market.get_industry_fund_flow(top_n), ensure_ascii=False, default=str)
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -1420,6 +1464,132 @@ def stock_finder(strategy: str = "etf", max_results: int = 5, risk_tolerance: st
         except Exception:
             h = None
     return json.dumps(aggregate_tools.stock_finder(strategy, max_results, risk_tolerance, h), ensure_ascii=False, default=str)
+
+
+# ══════════════════════════════════════════════════════════════
+# P2 补全工具（2026-08-16，移植自 Gateway 15 个缺口）
+# ══════════════════════════════════════════════════════════════
+
+@mcp.tool(name="get_fund_flow_120d")
+def tool_get_fund_flow_120d(code: str, days: int = 120) -> str:
+    """获取个股120日资金流向（日级主力/大单/中单/小单净流入）。
+    Args: code=股票代码, days=最近多少天(默认120，最大120)
+    用途：判断中长期资金趋势"""
+    return json.dumps(em_fundflow.get_fund_flow_120d(code, days), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="get_fund_flow_minute")
+def tool_get_fund_flow_minute(code: str) -> str:
+    """获取个股当日盘中分钟级资金流向（主力/大单/中单/小单/超大单净流入）。
+    Args: code=股票代码
+    用途：盘中实时判断资金偏好"""
+    return json.dumps(em_fundflow.get_fund_flow_minute(code), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="get_concept_fund_flow")
+def tool_get_concept_fund_flow(top_n: int = 20, sort_by: str = "net_inflow") -> str:
+    """获取概念板块资金流向排名（主力净流入/流出）。
+    Args: top_n=返回条数(默认20), sort_by=net_inflow/net_outflow
+    无需股票代码参数，纯市场数据。用途：判断概念级别的资金偏好，捕捉热点题材。"""
+    return json.dumps(em_fundflow.get_concept_fund_flow(top_n, sort_by), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="get_margin_trading")
+def tool_get_margin_trading(code: str, days: int = 30) -> str:
+    """获取个股融资融券明细（日级）。含融资余额、融资买入/偿还、融券余额等。
+    Args: code=股票代码, days=天数(默认30，最大120)
+    用途：两融数据跟踪，判断杠杆资金动向"""
+    return json.dumps({"code": code, "records": em_market.get_margin_trading(code, days)}, ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="get_block_trade")
+def tool_get_block_trade(code: str) -> str:
+    """获取个股大宗交易记录。含成交价、溢价率、买卖方营业部。
+    Args: code=股票代码
+    用途：跟踪大宗交易动向，判断机构/大资金行为"""
+    return json.dumps({"code": code, "records": em_market.get_block_trade(code)}, ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="get_holder_change")
+def tool_get_holder_change(code: str) -> str:
+    """获取股东户数变化（季度级）。含股东户数、环比变化、户均持股。
+    Args: code=股票代码
+    用途：筹码集中度分析，股东户数持续减少=主力吸筹信号"""
+    return json.dumps({"code": code, "records": em_market.get_holder_change(code)}, ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="get_dividend_history")
+def tool_get_dividend_history(code: str) -> str:
+    """获取分红送转历史。含每股派息、每10股转增/送股比例。
+    Args: code=股票代码
+    用途：分红能力评估"""
+    return json.dumps({"code": code, "records": em_market.get_dividend_history(code)}, ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="fetch_financials")
+def tool_fetch_financials(code: str) -> str:
+    """获取股票财务报表核心数据 — 营收、利润、EPS、FCF、负债、流通股本等。
+    Args: code=股票代码
+    数据源：东方财富 F10 主要财务指标，自动覆盖近5期"""
+    return json.dumps(em_market.fetch_financials(code), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="get_financial_reports")
+def tool_get_financial_reports(code: str, type: str = "lrb", periods: int = 8) -> str:
+    """获取新浪财报三表数据（资产负债表/利润表/现金流量表）。
+    Args: code=股票代码, type=报表类型(lrb利润表/fzb资产负债表/llb现金流量表,默认lrb), periods=期数(默认8，最大20)
+    用途：详细的财务科目分析"""
+    return json.dumps(sina_financial.get_sina_financial_report(code, type, periods), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="search_tradingview_market")
+def tool_search_tradingview_market(query: str, filter: str = "") -> str:
+    """搜索 TV 行情代码。
+    Args: query=关键词, filter=类型(可选)
+    用途：查找 TV 代码（SSE/SZSE 格式）"""
+    return json.dumps(advanced_tools.search_tradingview_market(query, filter), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="technical_batch_scan")
+def tool_technical_batch_scan(codes: str, days: int = 90, filter: str = "") -> str:
+    """批量技术指标扫描 — 一次计算多只股票的技术指标并可按条件筛选。
+    Args: codes=股票代码列表(逗号分隔,最多30只), days=K线天数(默认90), filter=筛选条件
+    filter可选: macd=golden/dead(金叉/死叉), rsi=oversold/overbought(超卖/超买),
+    boll=upper/lower(布林突破), min_score=最小评分(0-100), min_volume_ratio=最小量比, limit=返回条数"""
+    return json.dumps(advanced_tools.technical_batch_scan(codes, days, filter), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="strategy_scan")
+def tool_strategy_scan(strategy: str) -> str:
+    """A股特色策略扫描 — 基于涨停梯队/热点题材/技术指标执行选股策略。
+    Args: strategy=策略ID(必填), 可选 all=跑全部
+    策略: limit_up_ladder(连板梯队) / limit_up_momentum(涨停动量) / broken_board_reversal(断板反包) /
+    volume_price_rise(量价齐升) / oversold_rebound(超跌反弹) / ma_bullish(均线多头)
+    用途: 盘前/盘中快速选股"""
+    return json.dumps(advanced_tools.strategy_scan(strategy), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="stock_score")
+def tool_stock_score(code: str) -> str:
+    """个股综合评分 — 整合技术面、资金流向、市场表现等多维度，输出 0-100 评分及分项明细。
+    Args: code=股票代码
+    一次调用替代多次独立查询"""
+    return json.dumps(advanced_tools.stock_score(code), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="stock_signals")
+def tool_stock_signals(code: str) -> str:
+    """个股多因子信号聚合 — 技术 + 资金 + 量价综合判断。
+    Args: code=股票代码
+    返回多头/空头信号列表与综合结论"""
+    return json.dumps(advanced_tools.stock_signals(code), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="tdx_test")
+def tool_tdx_test() -> str:
+    """TDX 协议连通性测试 — mootdx TCP 直连 + 腾讯行情兜底。
+    用途：验证行情链路可用性"""
+    return json.dumps(advanced_tools.tdx_test(), ensure_ascii=False, default=str)
 
 
 # ── 辅助函数 ──────────────────────────────────────────────

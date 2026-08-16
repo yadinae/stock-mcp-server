@@ -1,0 +1,713 @@
+[
+ {
+  "id": "ai",
+  "name": "AI / LLM",
+  "nameZh": "AI/大模型",
+  "description": "人工智能、大模型、AIGC、AI 应用与基础设施",
+  "bkCode": "BK1234",
+  "tags": [
+   "人工智能",
+   "大模型",
+   "AI",
+   "AIGC",
+   "算力",
+   "软件"
+  ],
+  "sources": [
+   {
+    "name": "OpenAI Blog",
+    "hint": "ai",
+    "type": "rss",
+    "url": "https://openai.com/blog/rss/"
+   },
+   {
+    "name": "Google AI Blog",
+    "hint": "ai",
+    "type": "rss",
+    "url": "https://blog.google/technology/ai/rss/"
+   },
+   {
+    "name": "Hugging Face Blog",
+    "hint": "ai",
+    "type": "rss",
+    "url": "https://huggingface.co/blog/feed.xml"
+   },
+   {
+    "name": "MIT Tech Review AI",
+    "hint": "ai",
+    "type": "rss",
+    "url": "https://www.technologyreview.com/topic/artificial-intelligence/feed/"
+   },
+   {
+    "name": "Anthropic Blog",
+    "hint": "ai",
+    "type": "rss",
+    "url": "https://www.anthropic.com/rss.xml"
+   },
+   {
+    "name": "Google DeepMind",
+    "hint": "ai",
+    "type": "rss",
+    "url": "https://deepmind.google/blog/rss/"
+   },
+   {
+    "name": "量子位",
+    "hint": "ai",
+    "type": "rss",
+    "url": "https://www.qbitai.com/feed"
+   },
+   {
+    "name": "机器之心",
+    "hint": "ai",
+    "type": "rss",
+    "url": "https://www.jiqizhixin.com/rss"
+   },
+   {
+    "name": "智东西",
+    "hint": "ai",
+    "type": "rss",
+    "url": "https://www.zhidx.com/feed"
+   },
+   {
+    "name": "Ars Technica AI",
+    "hint": "ai",
+    "type": "rss",
+    "url": "https://feeds.arstechnica.com/arstechnica/ai"
+   },
+   {
+    "name": "VentureBeat AI",
+    "hint": "ai",
+    "type": "rss",
+    "url": "https://venturebeat.com/category/ai/feed/"
+   },
+   {
+    "name": "The Verge AI",
+    "hint": "ai",
+    "type": "rss",
+    "url": "https://www.theverge.com/ai-artificial-intelligence/rss/index.xml"
+   }
+  ]
+ },
+ {
+  "id": "semi",
+  "name": "Semiconductor",
+  "nameZh": "半导体/芯片",
+  "description": "半导体设计、制造、设备、材料、EDA 及产业链",
+  "bkCode": "BK0728",
+  "tags": [
+   "半导体",
+   "芯片",
+   "集成电路",
+   "光刻",
+   "封测",
+   "设备"
+  ],
+  "sources": [
+   {
+    "name": "DIGITIMES",
+    "hint": "semi",
+    "type": "rss",
+    "url": "https://www.digitimes.com/rss/news_all.xml"
+   },
+   {
+    "name": "SemiAnalysis",
+    "hint": "semi",
+    "type": "rss",
+    "url": "https://www.semianalysis.com/feed"
+   },
+   {
+    "name": "IEEE Spectrum Semis",
+    "hint": "semi",
+    "type": "rss",
+    "url": "https://spectrum.ieee.org/feeds/semiconductors.rss"
+   },
+   {
+    "name": "EE Times",
+    "hint": "semi",
+    "type": "rss",
+    "url": "https://www.eetimes.com/feed/"
+   },
+   {
+    "name": "Semiconductor Engineering",
+    "hint": "semi",
+    "type": "rss",
+    "url": "https://semiengineering.com/feed/"
+   },
+   {
+    "name": "AnandTech",
+    "hint": "semi",
+    "type": "rss",
+    "url": "https://www.anandtech.com/rss/"
+   },
+   {
+    "name": "集微网",
+    "hint": "semi",
+    "type": "rss",
+    "url": "https://www.laoyaoba.com/feed"
+   }
+  ]
+ },
+ {
+  "id": "robot",
+  "name": "Robotics",
+  "nameZh": "机器人/自动化",
+  "description": "工业机器人、人形机器人、自动化、智能装备",
+  "bkCode": "BK1070",
+  "tags": [
+   "机器人",
+   "自动化",
+   "人形机器人",
+   "工业4.0",
+   "减速器"
+  ],
+  "sources": [
+   {
+    "name": "The Robot Report",
+    "hint": "robot",
+    "type": "rss",
+    "url": "https://www.therobotreport.com/feed/"
+   },
+   {
+    "name": "IEEE Spectrum Robotics",
+    "hint": "robot",
+    "type": "rss",
+    "url": "https://spectrum.ieee.org/feeds/robotics.rss"
+   },
+   {
+    "name": "Robotics Business Review",
+    "hint": "robot",
+    "type": "rss",
+    "url": "https://www.roboticsbusinessreview.com/feed/"
+   },
+   {
+    "name": "TechCrunch Robotics",
+    "hint": "robot",
+    "type": "rss",
+    "url": "https://techcrunch.com/category/robotics/feed/"
+   }
+  ]
+ },
+ {
+  "id": "auto",
+  "name": "EV / Auto",
+  "nameZh": "汽车/新能源车",
+  "description": "新能源汽车、智能驾驶、动力电池、充电设施、汽车产业链",
+  "bkCode": "BK0484",
+  "tags": [
+   "新能源车",
+   "智能驾驶",
+   "锂电池",
+   "汽车",
+   "零部件",
+   "充电桩"
+  ],
+  "sources": [
+   {
+    "name": "Electrek",
+    "hint": "auto",
+    "type": "rss",
+    "url": "https://electrek.co/feed/"
+   },
+   {
+    "name": "InsideEVs",
+    "hint": "auto",
+    "type": "rss",
+    "url": "https://insideevs.com/rss/"
+   },
+   {
+    "name": "CleanTechnica",
+    "hint": "auto",
+    "type": "rss",
+    "url": "https://cleantechnica.com/feed/"
+   },
+   {
+    "name": "TechCrunch Auto",
+    "hint": "auto",
+    "type": "rss",
+    "url": "https://techcrunch.com/category/transportation/feed/"
+   },
+   {
+    "name": "Car and Driver",
+    "hint": "auto",
+    "type": "rss",
+    "url": "https://www.caranddriver.com/rss/all/"
+   },
+   {
+    "name": "盖世汽车",
+    "hint": "auto",
+    "type": "rss",
+    "url": "https://auto.gasgoo.com/rss/news.xml"
+   }
+  ]
+ },
+ {
+  "id": "energy",
+  "name": "Renewable Energy",
+  "nameZh": "新能源/能源",
+  "description": "光伏、风电、储能、氢能、核电、电力系统",
+  "bkCode": "BK0860",
+  "tags": [
+   "光伏",
+   "风电",
+   "储能",
+   "氢能",
+   "新能源",
+   "电力"
+  ],
+  "sources": [
+   {
+    "name": "CleanTechnica Energy",
+    "hint": "energy",
+    "type": "rss",
+    "url": "https://cleantechnica.com/category/energy/feed/"
+   },
+   {
+    "name": "PV Magazine",
+    "hint": "energy",
+    "type": "rss",
+    "url": "https://www.pv-magazine.com/feed/"
+   },
+   {
+    "name": "Renewable Energy World",
+    "hint": "energy",
+    "type": "rss",
+    "url": "https://www.renewableenergyworld.com/feed/"
+   },
+   {
+    "name": "国际能源网",
+    "hint": "energy",
+    "type": "rss",
+    "url": "https://www.ineng.com/rss.php"
+   },
+   {
+    "name": "北极星电力网",
+    "hint": "energy",
+    "type": "rss",
+    "url": "https://www.bjx.com.cn/rss/industry.xml"
+   }
+  ]
+ },
+ {
+  "id": "bio",
+  "name": "Biotech / Pharma",
+  "nameZh": "生物医药/医疗",
+  "description": "生物技术、创新药、医疗器械、CXO、医疗健康",
+  "bkCode": "BK0826",
+  "tags": [
+   "生物医药",
+   "创新药",
+   "医疗器械",
+   "CXO",
+   "医疗",
+   "健康"
+  ],
+  "sources": [
+   {
+    "name": "STAT News",
+    "hint": "bio",
+    "type": "rss",
+    "url": "https://www.statnews.com/feed/"
+   },
+   {
+    "name": "Endpoints News",
+    "hint": "bio",
+    "type": "rss",
+    "url": "https://endpts.com/feed/"
+   },
+   {
+    "name": "Fierce Pharma",
+    "hint": "bio",
+    "type": "rss",
+    "url": "https://www.fiercepharma.com/feed"
+   },
+   {
+    "name": "Fierce Biotech",
+    "hint": "bio",
+    "type": "rss",
+    "url": "https://www.fiercebiotech.com/feed"
+   },
+   {
+    "name": "BioSpace",
+    "hint": "bio",
+    "type": "rss",
+    "url": "https://www.biospace.com/feed/"
+   },
+   {
+    "name": "Medical Xpress",
+    "hint": "bio",
+    "type": "rss",
+    "url": "https://medicalxpress.com/rss-feed/"
+   },
+   {
+    "name": "药智新闻",
+    "hint": "bio",
+    "type": "rss",
+    "url": "https://news.yaozh.com/rss"
+   }
+  ]
+ },
+ {
+  "id": "space",
+  "name": "Space / Defense",
+  "nameZh": "航天/军工",
+  "description": "航天、卫星、军工、国防科技、商业航天",
+  "bkCode": "BK0691",
+  "tags": [
+   "航天",
+   "军工",
+   "卫星",
+   "商业航天",
+   "国防",
+   "低空经济"
+  ],
+  "sources": [
+   {
+    "name": "SpaceNews",
+    "hint": "space",
+    "type": "rss",
+    "url": "https://spacenews.com/feed/"
+   },
+   {
+    "name": "NASA News",
+    "hint": "space",
+    "type": "rss",
+    "url": "https://www.nasa.gov/rss/dyn/breaking_news.rss"
+   },
+   {
+    "name": "Ars Technica Space",
+    "hint": "space",
+    "type": "rss",
+    "url": "https://feeds.arstechnica.com/arstechnica/space"
+   },
+   {
+    "name": "Space.com",
+    "hint": "space",
+    "type": "rss",
+    "url": "https://www.space.com/feeds/all"
+   },
+   {
+    "name": "Teslarati",
+    "hint": "space",
+    "type": "rss",
+    "url": "https://www.teslarati.com/feed/"
+   }
+  ]
+ },
+ {
+  "id": "security",
+  "name": "Cybersecurity",
+  "nameZh": "网络安全/IT",
+  "description": "网络安全、信息安全、数据安全、隐私计算",
+  "bkCode": "BK0790",
+  "tags": [
+   "网络安全",
+   "信息安全",
+   "数据安全",
+   "隐私计算",
+   "软件"
+  ],
+  "sources": [
+   {
+    "name": "Krebs on Security",
+    "hint": "security",
+    "type": "rss",
+    "url": "https://krebsonsecurity.com/feed/"
+   },
+   {
+    "name": "BleepingComputer",
+    "hint": "security",
+    "type": "rss",
+    "url": "https://www.bleepingcomputer.com/feed/"
+   },
+   {
+    "name": "The Hacker News",
+    "hint": "security",
+    "type": "rss",
+    "url": "https://feeds.feedburner.com/TheHackersNews"
+   },
+   {
+    "name": "CSO Online",
+    "hint": "security",
+    "type": "rss",
+    "url": "https://www.csoonline.com/feed/"
+   },
+   {
+    "name": "Dark Reading",
+    "hint": "security",
+    "type": "rss",
+    "url": "https://www.darkreading.com/rss/all.xml"
+   },
+   {
+    "name": "安全客",
+    "hint": "security",
+    "type": "rss",
+    "url": "https://www.anquanke.com/feed"
+   }
+  ]
+ },
+ {
+  "id": "tech",
+  "name": "Big Tech",
+  "nameZh": "科技/互联网",
+  "description": "全球科技巨头、互联网平台、云计算、SaaS、消费科技",
+  "bkCode": "BK1030",
+  "tags": [
+   "科技",
+   "互联网",
+   "云计算",
+   "SaaS",
+   "平台",
+   "消费电子"
+  ],
+  "sources": [
+   {
+    "name": "TechCrunch",
+    "hint": "tech",
+    "type": "rss",
+    "url": "https://techcrunch.com/feed/"
+   },
+   {
+    "name": "The Verge",
+    "hint": "tech",
+    "type": "rss",
+    "url": "https://www.theverge.com/rss/index.xml"
+   },
+   {
+    "name": "Ars Technica",
+    "hint": "tech",
+    "type": "rss",
+    "url": "https://feeds.arstechnica.com/arstechnica/index"
+   },
+   {
+    "name": "Wired",
+    "hint": "tech",
+    "type": "rss",
+    "url": "https://www.wired.com/feed/rss"
+   },
+   {
+    "name": "虎嗅",
+    "hint": "tech",
+    "type": "rss",
+    "url": "https://www.huxiu.com/rss/0.xml"
+   },
+   {
+    "name": "36氪",
+    "hint": "tech",
+    "type": "rss",
+    "url": "https://36kr.com/feed"
+   },
+   {
+    "name": "钛媒体",
+    "hint": "tech",
+    "type": "rss",
+    "url": "https://www.tmtpost.com/rss"
+   },
+   {
+    "name": "Engadget",
+    "hint": "tech",
+    "type": "rss",
+    "url": "https://www.engadget.com/rss.xml"
+   },
+   {
+    "name": "CNET",
+    "hint": "tech",
+    "type": "rss",
+    "url": "https://www.cnet.com/rss/news/"
+   }
+  ]
+ },
+ {
+  "id": "consumer",
+  "name": "Consumer Electronics",
+  "nameZh": "消费电子/数码",
+  "description": "智能手机、可穿戴、XR/VR、智能家居、半导体消费端",
+  "bkCode": "BK0846",
+  "tags": [
+   "消费电子",
+   "手机",
+   "可穿戴",
+   "XR",
+   "VR",
+   "智能家居"
+  ],
+  "sources": [
+   {
+    "name": "GSMArena",
+    "hint": "consumer",
+    "type": "rss",
+    "url": "https://www.gsmarena.com/rss-news-reviews.php3"
+   },
+   {
+    "name": "Android Authority",
+    "hint": "consumer",
+    "type": "rss",
+    "url": "https://www.androidauthority.com/feed/"
+   },
+   {
+    "name": "DPReview",
+    "hint": "consumer",
+    "type": "rss",
+    "url": "https://www.dpreview.com/feeds/news.xml"
+   },
+   {
+    "name": "少数派",
+    "hint": "consumer",
+    "type": "rss",
+    "url": "https://sspai.com/feed"
+   }
+  ]
+ },
+ {
+  "id": "macro",
+  "name": "Macro / Finance",
+  "nameZh": "宏观/财经",
+  "description": "宏观经济、货币政策、地缘政治、全球市场",
+  "bkCode": "000001",
+  "tags": [
+   "宏观",
+   "财经",
+   "利率",
+   "通胀",
+   "GDP",
+   "地缘"
+  ],
+  "sources": [
+   {
+    "name": "CNBC",
+    "hint": "macro",
+    "type": "rss",
+    "url": "https://www.cnbc.com/id/100003114/device/rss/rss.html"
+   },
+   {
+    "name": "Financial Times",
+    "hint": "macro",
+    "type": "rss",
+    "url": "https://www.ft.com/rss/home"
+   },
+   {
+    "name": "WSJ Markets",
+    "hint": "macro",
+    "type": "rss",
+    "url": "https://feeds.a.dj.com/rss/RSSMarketsMain.xml"
+   },
+   {
+    "name": "MarketWatch",
+    "hint": "macro",
+    "type": "rss",
+    "url": "https://feeds.marketwatch.com/marketwatch/topstories/"
+   },
+   {
+    "name": "Yahoo Finance",
+    "hint": "macro",
+    "type": "rss",
+    "url": "https://finance.yahoo.com/news/rssindex"
+   },
+   {
+    "name": "华尔街见闻",
+    "hint": "macro",
+    "type": "rss",
+    "url": "https://dedicated.wallstreetcn.com/rss.xml"
+   },
+   {
+    "name": "Finextra",
+    "hint": "macro",
+    "type": "rss",
+    "url": "https://www.finextra.com/rss/headlines.aspx"
+   },
+   {
+    "name": "SEC",
+    "hint": "macro",
+    "type": "rss",
+    "url": "https://www.sec.gov/news/pressreleases.rss"
+   },
+   {
+    "name": "Federal Reserve",
+    "hint": "macro",
+    "type": "rss",
+    "url": "https://www.federalreserve.gov/feeds/press_all.xml"
+   },
+   {
+    "name": "Seeking Alpha",
+    "hint": "macro",
+    "type": "rss",
+    "url": "https://seekingalpha.com/market_currents.xml"
+   },
+   {
+    "name": "东方财富",
+    "hint": "macro",
+    "type": "rss",
+    "url": "https://rss.eastmoney.com/rss_stock.xml"
+   },
+   {
+    "name": "经济观察网",
+    "hint": "macro",
+    "type": "rss",
+    "url": "https://www.eeo.com.cn/rss.xml"
+   }
+  ]
+ },
+ {
+  "id": "science",
+  "name": "Frontier Science",
+  "nameZh": "前沿科学",
+  "description": "前沿科技、基础科学突破、量子计算、新材料",
+  "bkCode": "BK0994",
+  "tags": [
+   "科学",
+   "前沿",
+   "量子",
+   "新材料",
+   "突破"
+  ],
+  "sources": [
+   {
+    "name": "Nature News",
+    "hint": "science",
+    "type": "rss",
+    "url": "https://www.nature.com/nature.rss"
+   },
+   {
+    "name": "ScienceDaily",
+    "hint": "science",
+    "type": "rss",
+    "url": "https://www.sciencedaily.com/rss/all.xml"
+   },
+   {
+    "name": "Quanta Magazine",
+    "hint": "science",
+    "type": "rss",
+    "url": "https://api.quantamagazine.org/feed/"
+   },
+   {
+    "name": "New Scientist",
+    "hint": "science",
+    "type": "rss",
+    "url": "https://www.newscientist.com/feed/home/"
+   },
+   {
+    "name": "Live Science",
+    "hint": "science",
+    "type": "rss",
+    "url": "https://www.livescience.com/feeds/all"
+   },
+   {
+    "name": "MIT News",
+    "hint": "science",
+    "type": "rss",
+    "url": "https://news.mit.edu/rss/research"
+   },
+   {
+    "name": "Science News",
+    "hint": "science",
+    "type": "rss",
+    "url": "https://www.sciencenews.org/feed"
+   },
+   {
+    "name": "Ars Technica Science",
+    "hint": "science",
+    "type": "rss",
+    "url": "https://feeds.arstechnica.com/arstechnica/science"
+   }
+  ]
+ }
+]

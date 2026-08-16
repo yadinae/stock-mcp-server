@@ -47,6 +47,7 @@ from tools.backtest import run_backtest, list_backtest_strategies
 from tools import advanced as advanced_tools
 from data_sources import em_fundflow
 from data_sources import sina_financial
+from data_sources import intel as intel_tools
 
 logging.basicConfig(
     level=logging.WARNING,
@@ -1590,6 +1591,56 @@ def tool_tdx_test() -> str:
     """TDX 协议连通性测试 — mootdx TCP 直连 + 腾讯行情兜底。
     用途：验证行情链路可用性"""
     return json.dumps(advanced_tools.tdx_test(), ensure_ascii=False, default=str)
+
+
+# ══════════════════════════════════════════════════════════════
+# P3 情报赛道工具（2026-08-16，移植自 Gateway intelligence.ts / intel_fetcher.ts）
+# ══════════════════════════════════════════════════════════════
+
+@mcp.tool(name="list_sectors")
+def tool_list_sectors() -> str:
+    """列出所有投资情报赛道。
+    返回 12 大赛道（AI/半导体/机器人/汽车/新能源/医药/航天/网安/科技/消费/宏观/科学），
+    含 A 股板块代码(BK)与标签。用途：了解可订阅的情报范围。"""
+    return json.dumps(intel_tools.list_sectors(), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="get_sector_briefing")
+def tool_get_sector_briefing(sector_id: str = "ai") -> str:
+    """获取指定赛道的 AI 摘要简报。
+    Args: sector_id=赛道ID（ai/semi/robot/auto/energy/bio/space/security/tech/consumer/macro/science）
+    返回该赛道今日要点 + 最新新闻。用途：快速了解某赛道最新动态。"""
+    return json.dumps(intel_tools.get_sector_briefing(sector_id), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="get_sector_news")
+def tool_get_sector_news(sector_id: str = "ai", limit: int = 10) -> str:
+    """获取指定赛道的最新原始新闻。
+    Args: sector_id=赛道ID, limit=返回条数(默认10)
+    用途：查看赛道原始新闻标题/来源/摘要。"""
+    return json.dumps(intel_tools.get_sector_news(sector_id, limit), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="get_all_sectors_briefing")
+def tool_get_all_sectors_briefing() -> str:
+    """全赛道综合摘要 — 一次获取 12 大赛道的 AI 摘要 + 跨赛道综述 + 当前热门赛道。
+    用途：开盘前快速了解全市场情报。"""
+    return json.dumps(intel_tools.get_all_sectors_briefing(), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="search_industry_news")
+def tool_search_industry_news(keyword: str) -> str:
+    """跨赛道搜索新闻。
+    Args: keyword=搜索关键词
+    用途：在所有赛道的缓存新闻中搜索特定主题。"""
+    return json.dumps(intel_tools.search_industry_news(keyword), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="refresh_intel_cache")
+def tool_refresh_intel_cache() -> str:
+    """刷新所有赛道情报缓存（重新抓取 RSS）。
+    用途：缓存过期后手动刷新。"""
+    return json.dumps(intel_tools.refresh_intel_cache(), ensure_ascii=False, default=str)
 
 
 # ── 辅助函数 ──────────────────────────────────────────────

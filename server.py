@@ -45,6 +45,10 @@ from tools.analyzer import analyze_stock as ai_analyze
 from tools.st_risk import get_st_risk
 from tools.backtest import run_backtest, list_backtest_strategies
 from tools import advanced as advanced_tools
+from tools import advanced2_dcf
+from tools import advanced2_lhb
+from tools import advanced2_unit
+from tools import advanced2_hot
 from data_sources import em_fundflow
 from data_sources import sina_financial
 from data_sources import intel as intel_tools
@@ -1641,6 +1645,129 @@ def tool_refresh_intel_cache() -> str:
     """刷新所有赛道情报缓存（重新抓取 RSS）。
     用途：缓存过期后手动刷新。"""
     return json.dumps(intel_tools.refresh_intel_cache(), ensure_ascii=False, default=str)
+
+
+# ══════════════════════════════════════════════════════════════
+# P2 复合分析工具（2026-08-16，移植自 Gateway analyze_policy/analyze_hot_money/lhb/icmemo/dcf/dd_checklist/trap/unit_econ/value_plan）
+# ══════════════════════════════════════════════════════════════
+
+@mcp.tool(name="dcf_valuation")
+def tool_dcf_valuation(code: str) -> str:
+    """DCF 估值模型 — 两阶段自由现金流折现 + 5×5 敏感性表。
+    Args: code=股票代码
+    基于最新财报 FCF，输出内在价值/安全边际/WACC/敏感性网格。用途：价值投资估值。"""
+    return json.dumps(advanced2_dcf.dcf_valuation(code), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="ic_memo")
+def tool_ic_memo(code: str) -> str:
+    """投委会备忘录 — 质量评分 × DCF估值 → P0-P4 级别买入/观望/回避建议。
+    Args: code=股票代码
+    整合财务质量分 + 估值安全边际 + 情景分析 + 风险清单。用途：投资决策支持。"""
+    return json.dumps(advanced2_dcf.ic_memo(code), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="unit_economics")
+def tool_unit_economics(code: str) -> str:
+    """单元经济分析 — SaaS: ARPU/LTV/CAC/回本周期 | 非SaaS: 毛利瀑布分解。
+    Args: code=股票代码
+    基于财报估算单位经济模型。用途：商业模式质量评估。"""
+    return json.dumps(advanced2_unit.unit_economics(code), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="value_creation_plan")
+def tool_value_creation_plan(code: str) -> str:
+    """价值创造计划 — 5年EBITDA Bridge: 营收增长/交叉销售/定价优化/供应链/营运资本。
+    Args: code=股票代码
+    输出当前→逐杠杆影响→目标EBITDA + 百日优先行动。用途：管理层价值提升路线图。"""
+    return json.dumps(advanced2_unit.value_creation_plan(code), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="check_trap_risk")
+def tool_check_trap_risk(code: str) -> str:
+    """杀猪盘检测 — 从K线 + 新闻检测推广/拉盘/出货等杀猪盘特征信号。
+    Args: code=股票代码
+    检测: 短期暴涨/中期暴涨/放量下跌/连续涨停/新闻推广。用途：避雷。"""
+    return json.dumps(advanced2_lhb.check_trap_risk(code), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="dd_checklist")
+def tool_dd_checklist(code: str) -> str:
+    """尽调清单 — 5大工作流（财务/商业/法律/运营/市场）自动尽调。
+    Args: code=股票代码
+    基于已有数据自动标记完成项，输出完成率 + 需人工核查项。用途：投资尽调框架。"""
+    return json.dumps(advanced2_lhb.dd_checklist(code), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="analyze_lhb")
+def tool_analyze_lhb(code: str) -> str:
+    """龙虎榜深度分析 — 个股近30日龙虎榜数据、游资席位识别、机构vs游资博弈。
+    Args: code=股票代码（仅A股）
+    匹配 22 位知名游资席位库，输出席位买卖/机构拆分/操作建议。用途：跟庄/避雷。"""
+    return json.dumps(advanced2_lhb.analyze_lhb(code), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="analyze_hot_money")
+def tool_analyze_hot_money(code: str) -> str:
+    """游资深度分析 — 综合龙虎榜+资金流向+板块资金+概念热度，输出游资博弈全景图。
+    Args: code=股票代码
+    输出: 龙虎榜摘要/席位分析/资金流趋势/概念热度/风险等级。用途：判断资金博弈格局。"""
+    return json.dumps(advanced2_hot.analyze_hot_money(code), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="analyze_policy")
+def tool_analyze_policy(code: str = "", sector: str = "") -> str:
+    """政策影响分析 — 宏观/行业/公司三层政策动态 + 影响评估。
+    Args: code=股票代码(可选), sector=行业(可选)
+    基于华尔街见闻快讯分类，检测宽松/收紧信号。用途：政策面风险与机会扫描。"""
+    return json.dumps(advanced2_hot.analyze_policy(code, sector), ensure_ascii=False, default=str)
+
+
+@mcp.tool(name="analyze_stock_agent")
+def tool_analyze_stock_agent(code: str) -> str:
+    """Agent 模式综合股票分析 — PlanExecute 编排多工具深度分析。
+    Args: code=股票代码
+    按顺序执行: 行情→财务→技术→资金→风险→综合结论。用途：一站式个股体检。"""
+    from tools.advanced2_hot import analyze_hot_money
+    from tools.advanced2_dcf import dcf_valuation
+    from tools.advanced2_lhb import check_trap_risk, analyze_lhb
+    from data_sources import tencent, em_market
+    result = {"code": code, "steps": []}
+    try:
+        q = tencent.get_realtime_quote(code)
+        result["steps"].append({"step": "行情", "name": q.get("name", code), "price": q.get("price"),
+                                "change_pct": q.get("change_pct")})
+    except Exception as e:
+        result["steps"].append({"step": "行情", "error": str(e)[:80]})
+    try:
+        fin = em_market.fetch_financials(code)
+        result["steps"].append({"step": "财务", "revenue_yi": round((fin.get("revenue") or 0)/1e8, 1),
+                                "net_profit_yi": round((fin.get("net_profit") or 0)/1e8, 1),
+                                "net_margin": fin.get("net_margin")})
+    except Exception as e:
+        result["steps"].append({"step": "财务", "error": str(e)[:80]})
+    try:
+        d = dcf_valuation(code)
+        result["steps"].append({"step": "估值", "intrinsic": d.get("intrinsic_per_share"),
+                                "safety_margin_pct": d.get("safety_margin_pct")})
+    except Exception as e:
+        result["steps"].append({"step": "估值", "error": str(e)[:80]})
+    try:
+        t = check_trap_risk(code)
+        result["steps"].append({"step": "风险", "risk_level": t.get("risk_level"),
+                                "signals": len(t.get("signals") or [])})
+    except Exception as e:
+        result["steps"].append({"step": "风险", "error": str(e)[:80]})
+    try:
+        hm = analyze_hot_money(code)
+        result["steps"].append({"step": "资金博弈", "risk_level": hm.get("risk_level"),
+                                "lhb_trend": hm.get("lhb_summary", {}).get("trend")})
+    except Exception as e:
+        result["steps"].append({"step": "资金博弈", "error": str(e)[:80]})
+    # 综合结论
+    risks = [s.get("risk_level") for s in result["steps"] if s.get("risk_level") == "高"]
+    result["conclusion"] = "⚠️ 存在高风险信号，建议谨慎" if risks else "基本面+资金面综合评估正常"
+    return json.dumps(result, ensure_ascii=False, default=str)
 
 
 # ── 辅助函数 ──────────────────────────────────────────────

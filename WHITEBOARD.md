@@ -1,38 +1,57 @@
-# WHITEBOARD — MCP Gateway 架构设计
+# WHITEBOARD — 对抗式解题
 
 ## 1️⃣ 任务要求
-- **任务类型**：GENERATE / REFLECT — 架构设计
-- **需求描述**：基于 Cloudflare Workers 构建一个 MCP Gateway，将 stock-mcp-server 作为核心旗舰服务，对外提供 MCP 协议接入，对内实现认证、用量跟踪、计费，最终开放第三方 MCP 工具注册
-- **核心约束**：
-  - 基于 Cloudflare Workers 生态（Workers + KV + D1）
-  - 计费层复用现有的 edge-key（支付宝/微信支付）
-  - stock-mcp-server 是第一个内置服务
-  - MCP 协议兼容（JSON-RPC over SSE / HTTP）
-- **参考素材**：
-  - stock-mcp-server（12 tools, A/港/美股）
-  - edge-key（自动发卡系统）
-  - tg-cloud-drive-worker（Workers 经验参考）
-  - MCP 协议规范（JSON-RPC 2.0 + SSE streaming）
+- **任务类型**: REFLECT — 架构设计（借鉴 WyckoffTradingAgent 设计思想）
+- **需求描述**: 从 WyckoffTradingAgent 项目中提取可借鉴的设计思想，设计融入 stock-mcp-server 的方案
+- **约束条件**: 
+  - 不破坏现有 123+ 工具的 MCP 兼容性
+  - 保持"代码即智能"原则
+  - 方案必须可分阶段实施
+  - **1人开发团队**（现实检验者 P0 约束）
+- **参考素材**: WyckoffTradingAgent 研究报告
 
 ## 2️⃣ 解题者工作区
-- 解题者：🏛️ 架构师
-- 状态：⏳ 进行中
-- 进度日志：
-- 交付物：
+- 解题者: 🏛️ 架构师
+- 状态: ✅ 完成（v3）
+- 进度日志: Phase 1 架构评审完成，吸收 3 位判别者反馈
+- 交付物: `docs/WYCKOFF_INSPIRED_ARCHITECTURE.md`
 
-## 3️⃣ 判别者工作区
+## 3️⃣ 判别者工作区（Agnes AI 评审）
+
+### 🏛️ 架构评审者 — 5.3/10
+- P0-1: 代码截断，AI审计员解析逻辑缺失 → v3 补全
+- P0-2: 缺少组件间协作协议 → v3 增加 Orchestrator
+- P0-3: 信号状态机/反馈闭环无实现 → v3 补全代码
+- P1-1~P1-6: 并行/辅助函数/Prompt硬编码/缓存/重试/中间传递 → v3 吸收
+
+### 🧠 优化师
+- P0: 漏斗异常处理逻辑缺陷（失败后应清空candidates）→ v3 修复
+- P0: AI审计员Prompt语法错误 → v3 修复
+- P0: 缺少Stage超时控制 → v3 增加timeout
+- P1: 缓存/持久化恢复/可观测性/批量处理 → v3 部分吸收
+
+### 🎯 现实检验者 — 2.9/10 ⚠️
+- P0-1: **1人团队无法交付5个复杂子系统** → v3 大幅简化为 MVP
+- P0-2: SQLite作为核心存储是架构级风险 → v3 改为 SQLite WAL + 只读查询
+- P0-3: AI审计员引入单点延迟 → v3 改为异步可选
+- P1-1: 反馈闭环缺乏终止条件 → v3 设定明确终止条件
+- P1-2: 13数据源×5阶段组合爆炸 → v3 MVP只用2个数据源
+- P2-1: 调度架构重复造轮子 → v3 用 Hermes cron 直接调度
+- P2-2: 五阶段漏斗过度抽象 → v3 MVP只做2个核心Stage
 
 ## 4️⃣ Arena 决策区
-- 当前阶段：Phase 1 (架构评审) → ✅ 已收敛
-- 评审结果：
-  - 🔌 功能审查: ✅ PASS（无问题）
-  - 🎯 现实检验: ✅ PASS_WITH_SUGGESTIONS（P1已修复，P2/P3 进入下一阶段）
-  - 🛡️ 安全审查: ✅ PASS_WITH_SUGGESTIONS（ADR-5/ADR-6 修复）
-- 修复项：
-  - [P1] 计费幂等设计 → ADR-5 已补充
-  - [P1] 收入估算 → 架构文档中为示例说明，非盈利预测
-  - [P2] API Key 前缀校验 → ADR-6 已补充
-  - [P2] 第三方工具安全 → Phase 4 再定义
-  - [P2] 成本估算 → 进入 Phase 0 时做详细成本分析
-- 收敛判断：✅ 可收敛 (P0=0, P1=0, PASS判定)
-- 下一阶段：等待用户确认 → Phase 0 原型实现
+- 当前阶段: Phase 1 架构评审 ✅
+- 结论: **CONDITIONAL PASS** — v3 MVP 方案可行，v2 全量方案不可行
+- 待执行: Phase 2 实现
+
+## 5️⃣ 优化建议区（🧠 优化师）
+- 批量处理 LLM 调用 → v3 吸收
+- 熔断器模式 → v3 吸收
+- Stage 依赖声明 → v3 吸收（简化版）
+
+## 6️⃣ 约束透明度报告
+- P0: 6 个 → v3 全部修复/降级
+- P1: 9 个 → v3 修复 6 个，推迟 3 个
+- P2: 6 个 → v3 修复 2 个，推迟 4 个
+- P3: 2 个 → 推迟到 Phase 3
+- P4: 4 个 → 推迟到 Phase 4

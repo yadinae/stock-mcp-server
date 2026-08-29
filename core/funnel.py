@@ -29,30 +29,108 @@ _BAOSTOCK_DB = Path(__file__).parent.parent / "data" / "baostock_cache.db"
 # 数据获取
 # ═══════════════════════════════════════════════════════════════
 
-def fetch_a_share_universe(page_size: int = 5000) -> List[dict]:
+def fetch_a_share_universe(page_size: int = 5500) -> List[dict]:
     """
-    从东财 push2 API 获取全市场 A 股列表
+    获取全市场 A 股列表（带降级链路）
 
-    返回: [{code, name, price, change_pct, volume, amount, high, low, open, ...}]
+    优先级:
+    1. TradingView REST（稳定，周末也能用，5346 stocks）
+    2. 东财 push2（工作日可能可用，周末/数据中心 IP 常 502）
+    3. baostock 内存缓存兜底（T-1 数据）
+
+    返回: [{code, name, price, change_pct, volume, market_cap, source}]
     """
+    # ── 方案1: TradingView REST ──
+    stocks = _fetch_via_tradingview(page_size)
+    if stocks:
+        return stocks
+
+    # ── 方案2: 东财 push2（降级） ──
+    stocks = _fetch_via_push2(page_size)
+    if stocks:
+        return stocks
+
+    # ── 方案3: baostock 内存缓存兜底 ──
+    stocks = _fetch_via_baostock_cache()
+    if stocks:
+        return stocks
+
+    logger.error("All A-share universe sources failed")
+    return []
+
+
+def _fetch_via_tradingview(page_size: int = 5500) -> List[dict]:
+    """从 TradingView REST scanner 获取全市场 A 股列表"""
+    import json
+    import urllib.request
+
+    payload = json.dumps({
+        "filter": [{"left": "market_cap_basic", "operation": "nempty"}],
+        "options": {"lang": "zh"},
+        "markets": ["sse", "szse"],
+        "symbols": {"query": {"types": []}, "tickers": []},
+        "columns": ["name", "description", "close", "change", "change_abs",
+                     "volume", "market_cap_basic"],
+        "sort": {"sortBy": "volume", "sortOrder": "desc"},
+        "range": [0, page_size],
+    }).encode()
+
+    req = urllib.request.Request(
+        "https://scanner.tradingview.com/china/scan",
+        data=payload,
+        headers={
+            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read().decode())
+
+        total = data.get("totalCount", 0)
+        rows = data.get("data") or []
+
+        stocks = []
+        for row in rows:
+            v = row.get("d") or []
+            if len(v) < 7:
+                continue
+            code = v[0] or ""
+            if not code:
+                continue
+            stocks.append({
+                "code": code,
+                "name": v[1] or "",
+                "price": v[2],
+                "change_pct": round(v[3], 2) if v[3] is not None else None,
+                "change_amount": v[4],
+                "volume": v[5],
+                "amount": round(v[5] * v[2], 0) if v[5] and v[2] else 0,  # 成交额 = 量 × 价
+                "market_cap": v[6],
+                "source": "tradingview",
+            })
+
+        logger.info("Fetched %d A-shares via TradingView REST (total: %d)", len(stocks), total)
+        return stocks
+    except Exception as e:
+        logger.warning("TradingView REST failed: %s", e)
+        return []
+
+
+def _fetch_via_push2(page_size: int = 5000) -> List[dict]:
+    """从东财 push2 获取全市场 A 股列表（降级方案，周末/数据中心常 502）"""
     import httpx
 
     url = "https://push2.eastmoney.com/api/qt/clist/get"
     params = {
-        "pn": 1,
-        "pz": page_size,
-        "po": 1,  # 降序
-        "np": 1,
-        "fltt": 2,
-        "invt": 2,
-        "fid": "f6",  # 按成交额排序
-        "fs": "m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23",  # 沪深 A 股
+        "pn": 1, "pz": page_size, "po": 1, "np": 1,
+        "fltt": 2, "invt": 2, "fid": "f6",
+        "fs": "m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23",
         "fields": "f2,f3,f4,f5,f6,f7,f12,f14,f15,f16,f17,f18",
     }
     try:
-        resp = httpx.get(url, params=params, timeout=15)
+        resp = httpx.get(url, params=params, timeout=10)
         data = resp.json().get("data", {})
-        total = data.get("total", 0)
         diff = data.get("diff", [])
 
         stocks = []
@@ -76,10 +154,38 @@ def fetch_a_share_universe(page_size: int = 5000) -> List[dict]:
                 "source": "eastmoney",
             })
 
-        logger.info("Fetched %d A-shares (total: %d)", len(stocks), total)
+        logger.info("Fetched %d A-shares via push2 (total: %d)", len(stocks), data.get("total", 0))
         return stocks
     except Exception as e:
-        logger.error("Failed to fetch A-share universe: %s", e)
+        logger.warning("push2 failed: %s", e)
+        return []
+
+
+def _fetch_via_baostock_cache() -> List[dict]:
+    """从 baostock 内存缓存获取 A 股列表（T-1 数据兜底）"""
+    try:
+        from core.baostock_cache import BaostockMemoryCache
+        cache = BaostockMemoryCache.instance()
+
+        stocks = []
+        for symbol in cache.symbols():
+            df = cache.get(symbol)
+            if df is None or len(df) == 0:
+                continue
+            latest = df.iloc[0]
+            stocks.append({
+                "code": symbol,
+                "name": symbol,
+                "price": float(latest.get("close", 0)),
+                "change_pct": None,
+                "volume": float(latest.get("volume", 0)),
+                "source": "baostock_cache",
+            })
+
+        logger.info("Fetched %d A-shares from baostock cache", len(stocks))
+        return stocks
+    except Exception as e:
+        logger.warning("baostock cache failed: %s", e)
         return []
 
 
@@ -254,9 +360,13 @@ def _vectorized_channel_checks(df: pd.DataFrame) -> pd.DataFrame:
     )
 
     # 突破通道: 放量 + 涨幅 > 3% + 价格接近最高价
-    near_high = pd.Series(False, index=df.index)
-    valid_high = df["high"] > 0
-    near_high[valid_high] = ((df["high"][valid_high] - df["price"][valid_high]) / df["high"][valid_high]) < 0.01
+    # TV REST 无 high 字段时跳过价格接近最高价判断
+    if "high" in df.columns:
+        near_high = pd.Series(False, index=df.index)
+        valid_high = df["high"] > 0
+        near_high[valid_high] = ((df["high"][valid_high] - df["price"][valid_high]) / df["high"][valid_high]) < 0.01
+    else:
+        near_high = pd.Series(True, index=df.index)  # 无 high 数据时不过滤
     df["_ch_breakout"] = (df["volume_ratio"] > 2.0) & (df["change_pct"] > 3) & near_high
 
     # 吸筹通道: 距年低 <= 45% + 缩量

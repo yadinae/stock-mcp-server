@@ -99,6 +99,70 @@ def _fetch_from_eastmoney() -> List[dict]:
     return stocks
 
 
+def _fetch_from_tradingview() -> List[dict]:
+    """从 TradingView REST 获取全市场 A 股（东财 502 时的兜底）"""
+    import json
+    import urllib.request
+
+    payload = json.dumps({
+        "filter": [{"left": "market_cap_basic", "operation": "nempty"}],
+        "options": {"lang": "zh"},
+        "markets": ["sse", "szse"],
+        "symbols": {"query": {"types": []}, "tickers": []},
+        "columns": ["name", "description", "close", "change", "volume",
+                    "sector", "industry", "market_cap_basic"],
+        "sort": {"sortBy": "market_cap_basic", "sortOrder": "desc"},
+        "range": [0, 5000],
+    }).encode()
+
+    req = urllib.request.Request(
+        "https://scanner.tradingview.com/china/scan",
+        data=payload,
+        headers={
+            "User-Agent": "Mozilla/5.0",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read().decode())
+    except Exception as e:
+        logger.warning("TradingView API error: %s", e)
+        return []
+
+    stocks = []
+    for row in (data.get("data") or []):
+        v = row.get("d") or []
+        if len(v) < 8:
+            continue
+        code = str(v[0] or "")
+        name = str(v[1] or "")
+        close = float(v[2] or 0)
+        change_pct = float(v[3] or 0)
+        volume = float(v[4] or 0)
+        industry = str(v[7] or "")
+        market_cap = float(v[8] or 0) if len(v) > 8 else 0
+
+        if not code:
+            continue
+        stocks.append({
+            "code": code,
+            "name": name,
+            "price": close if close else None,
+            "change_pct": round(change_pct, 2),
+            "volume": volume,
+            # TV 无成交额字段，用 成交量×收盘价 近似
+            "amount": round(volume * close, 2) if close else None,
+            "industry": industry,
+            "market_cap": market_cap,
+            "source": "tradingview",
+        })
+
+    logger.info("Fetched %d A-shares from TradingView REST", len(stocks))
+    return stocks
+
+
 def _fetch_from_baostock_cache() -> List[dict]:
     """从 baostock 本地缓存获取股票列表 + 最新行情"""
     if not _BAOSTOCK_DB.exists():
@@ -155,13 +219,18 @@ def run_funnel(context: dict = None) -> PipelineResult:
     ctx = context or {}
     t0 = time.time()
 
-    # 1. 获取全市场 A 股（东财优先，baostock 降级）
+    # 1. 获取全市场 A 股（东财优先 → TradingView → baostock 降级）
     logger.info("Step 1: Fetching A-share universe...")
     universe = _fetch_from_eastmoney()
     source = "eastmoney"
 
     if not universe:
-        logger.warning("Eastmoney API unavailable, falling back to baostock cache")
+        logger.warning("Eastmoney API unavailable, trying TradingView REST...")
+        universe = _fetch_from_tradingview()
+        source = "tradingview"
+
+    if not universe:
+        logger.warning("TradingView API unavailable, falling back to baostock cache")
         universe = _fetch_from_baostock_cache()
         source = "baostock_cache"
 
@@ -171,8 +240,8 @@ def run_funnel(context: dict = None) -> PipelineResult:
 
     logger.info("Got %d stocks from %s", len(universe), source)
 
-    # 2. 用 baostock 补充均线/量能数据（仅东财源需要）
-    if source == "eastmoney":
+    # 2. 用 baostock 补充均线/量能数据（东财/TradingView 源需要补齐技术指标）
+    if source in ("eastmoney", "tradingview"):
         logger.info("Step 2: Enriching with baostock data...")
         universe = enrich_with_baostock(universe)
     else:

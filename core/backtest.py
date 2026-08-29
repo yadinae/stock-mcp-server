@@ -1,29 +1,39 @@
 """
-回测验证框架 — 用历史数据验证漏斗策略效果
+回测验证框架 v2 — 向量化重写
 
-借鉴 WyckoffTradingAgent 的回测设计：
-- 信号日候选只由该日数据生成
-- 禁止未来数据参与筛选
-- 扣除交易成本后计算净收益
+核心变化（参考 vectorbt 向量化思路）：
+- 使用 BaostockMemoryCache 内存缓存（消除 SQLite I/O）
+- 所有 MA/信号计算使用 pandas rolling 向量化
+- 交易模拟使用 NumPy 矩阵运算替代逐 Bar 循环
+- 支持批量参数扫描：预加载数据一次，仅变换参数
 
 用法:
     from core.backtest import BacktestRunner
     runner = BacktestRunner()
     result = runner.run()
     result.print_report()
+
+    # 参数扫描（预加载一次，快速扫描）
+    from core.backtest import param_scan
+    results = param_scan(
+        holding_days=[3, 5, 10],
+        stop_loss_pct=[-5, -8, -10],
+        take_profit_pct=[10, 15, 20],
+    )
 """
 from __future__ import annotations
 
 import logging
-import sqlite3
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from pathlib import Path
-from typing import Dict, List, Optional
+from itertools import product
+from typing import Dict, List, Optional, Tuple
+
+import numpy as np
+import pandas as pd
 
 logger = logging.getLogger("stock-mcp.backtest")
-
-_BAOSTOCK_DB = Path(__file__).parent.parent / "data" / "baostock_cache.db"
 
 # 交易成本
 ROUND_TRIP_COST_PCT = 0.202  # A 股双边交易成本（约 0.2%）
@@ -41,8 +51,8 @@ class TradeRecord:
     exit_price: float
     holding_days: int
     pnl_pct: float
-    net_pnl_pct: float  # 扣除交易成本后
-    result: str  # "win" | "loss" | "neutral"
+    net_pnl_pct: float
+    result: str
 
 
 @dataclass
@@ -86,14 +96,213 @@ class BacktestResult:
         print("=" * 60)
 
 
+# ═══════════════════════════════════════════════════════════════
+# 向量化工具函数
+# ═══════════════════════════════════════════════════════════════
+
+def _vectorized_ma(closes: np.ndarray, period: int) -> np.ndarray:
+    """向量化 N 日均线（返回完整序列）"""
+    return pd.Series(closes).rolling(period, min_periods=period).mean().values
+
+
+def _vectorized_signal_detect(
+    closes: np.ndarray,
+    ma_s: np.ndarray,
+    ma_l: np.ndarray,
+) -> np.ndarray:
+    """
+    向量化信号检测：MA 短期上穿长期
+
+    Args:
+        closes: 收盘价数组
+        ma_s: 短期 MA 序列（已预计算）
+        ma_l: 长期 MA 序列（已预计算）
+
+    Returns:
+        布尔数组，True = 该 Bar 产生买入信号
+    """
+    if len(closes) < 2 or len(ma_s) < 2 or len(ma_l) < 2:
+        return np.zeros(len(closes), dtype=bool)
+
+    # 金叉：前一根 ma_s <= ma_l，当前 ma_s > ma_l
+    cross_up = np.zeros(len(closes), dtype=bool)
+    cross_up[1:] = (ma_s[:-1] <= ma_l[:-1]) & (ma_s[1:] > ma_l[1:])
+
+    # 额外条件：收盘价 > MA 短期（趋势确认）
+    valid = ~np.isnan(ma_s) & ~np.isnan(ma_l)
+    cross_up &= valid & (closes > ma_s)
+
+    return cross_up
+
+
+def _vectorized_simulate_trades(
+    dates: np.ndarray,
+    opens: np.ndarray,
+    highs: np.ndarray,
+    lows: np.ndarray,
+    closes: np.ndarray,
+    signal_mask: np.ndarray,
+    holding_days: int,
+    stop_loss_pct: float,
+    take_profit_pct: float,
+    code: str = "",
+    signal_type: str = "trend",
+) -> List[TradeRecord]:
+    """
+    向量化交易模拟
+
+    对给定的信号位置，模拟持仓并计算收益。
+    """
+    trades = []
+    signal_indices = np.where(signal_mask)[0]
+
+    for idx in signal_indices:
+        entry_bar = idx + 1
+        if entry_bar >= len(opens):
+            continue
+
+        entry_price = opens[entry_bar]
+        if not entry_price or entry_price <= 0 or np.isnan(entry_price):
+            continue
+
+        entry_date = str(dates[entry_bar])
+        exit_price = entry_price
+        exit_date = entry_date
+        actual_days = 0
+
+        for j in range(1, min(holding_days + 1, len(opens) - entry_bar)):
+            bar = entry_bar + j
+            high = highs[bar]
+            low = lows[bar]
+            close = closes[bar]
+
+            if low and not np.isnan(low):
+                pnl_low = (low - entry_price) / entry_price * 100
+                if pnl_low <= stop_loss_pct:
+                    exit_price = entry_price * (1 + stop_loss_pct / 100)
+                    exit_date = str(dates[bar])
+                    actual_days = j
+                    break
+
+            if high and not np.isnan(high):
+                pnl_high = (high - entry_price) / entry_price * 100
+                if pnl_high >= take_profit_pct:
+                    exit_price = entry_price * (1 + take_profit_pct / 100)
+                    exit_date = str(dates[bar])
+                    actual_days = j
+                    break
+
+            if close and not np.isnan(close):
+                exit_price = close
+                exit_date = str(dates[bar])
+            actual_days = j
+
+        pnl_pct = (exit_price - entry_price) / entry_price * 100
+        net_pnl_pct = pnl_pct - ROUND_TRIP_COST_PCT
+        result = "win" if net_pnl_pct > 0.5 else ("loss" if net_pnl_pct < -0.5 else "neutral")
+
+        trades.append(TradeRecord(
+            code=code, signal_date=str(dates[idx]), signal_type=signal_type,
+            entry_date=entry_date, entry_price=round(entry_price, 2),
+            exit_date=exit_date, exit_price=round(exit_price, 2),
+            holding_days=actual_days, pnl_pct=round(pnl_pct, 2),
+            net_pnl_pct=round(net_pnl_pct, 2), result=result,
+        ))
+
+    return trades
+
+
+# ═══════════════════════════════════════════════════════════════
+# 预加载数据层（参数扫描核心优化）
+# ═══════════════════════════════════════════════════════════════
+
+@dataclass
+class PreloadedStock:
+    """预加载的单只股票数据（numpy 数组）"""
+    symbol: str
+    dates: np.ndarray
+    opens: np.ndarray
+    highs: np.ndarray
+    lows: np.ndarray
+    closes: np.ndarray
+    # 预计算的 MA（按 period 索引）
+    _ma_cache: Dict[int, np.ndarray] = field(default_factory=dict)
+
+    def get_ma(self, period: int) -> np.ndarray:
+        """获取预计算的 MA（懒计算+缓存）"""
+        if period not in self._ma_cache:
+            self._ma_cache[period] = _vectorized_ma(self.closes, period)
+        return self._ma_cache[period]
+
+
+class PreloadedData:
+    """
+    预加载的全市场数据
+
+    从 BaostockMemoryCache 一次性加载所有数据到内存，
+    参数扫描时只变换参数，不重复 I/O。
+
+    v2 优化：预计算所有可能的 MA 组合，参数扫描时直接查表。
+    """
+
+    def __init__(self, start_date: Optional[str] = None, end_date: Optional[str] = None,
+                 ma_periods: Optional[List[int]] = None):
+        from core.baostock_cache import BaostockMemoryCache
+        cache = BaostockMemoryCache.instance()
+
+        self.stocks: List[PreloadedStock] = []
+        self.start_date = start_date or (datetime.now() - timedelta(days=120)).strftime("%Y-%m-%d")
+        self.end_date = end_date or datetime.now().strftime("%Y-%m-%d")
+
+        t0 = time.time()
+        for symbol in cache.symbols():
+            df = cache.get(symbol)
+            if df is None or len(df) < 60:
+                continue
+
+            dates = df["date"].values
+            mask = (dates >= self.start_date) & (dates <= self.end_date)
+            if mask.sum() < 30:
+                continue
+
+            self.stocks.append(PreloadedStock(
+                symbol=symbol,
+                dates=dates,
+                opens=df["open"].values.astype(float),
+                highs=df["high"].values.astype(float),
+                lows=df["low"].values.astype(float),
+                closes=df["close"].values.astype(float),
+            ))
+
+        # ── 预计算所有 MA 周期（避免参数扫描时重复计算） ──
+        if ma_periods:
+            for stock in self.stocks:
+                for period in ma_periods:
+                    stock.get_ma(period)  # 触发懒计算并缓存
+
+        elapsed = (time.time() - t0) * 1000
+        logger.info("Preloaded %d stocks (%s ~ %s) + %d MA periods in %.0fms",
+                     len(self.stocks), self.start_date, self.end_date,
+                     len(ma_periods or []), elapsed)
+
+    def __len__(self):
+        return len(self.stocks)
+
+
+# ═══════════════════════════════════════════════════════════════
+# 回测运行器
+# ═══════════════════════════════════════════════════════════════
+
 class BacktestRunner:
     """
-    回测运行器
+    向量化回测运行器
 
     Args:
         holding_days: 持仓天数（默认 5 天）
         stop_loss_pct: 止损百分比（默认 -8%）
         take_profit_pct: 止盈百分比（默认 +15%）
+        ma_short: 短期均线周期（默认 20）
+        ma_long: 长期均线周期（默认 50）
     """
 
     def __init__(
@@ -101,131 +310,66 @@ class BacktestRunner:
         holding_days: int = 5,
         stop_loss_pct: float = -8.0,
         take_profit_pct: float = 15.0,
+        ma_short: int = 20,
+        ma_long: int = 50,
     ):
         self.holding_days = holding_days
         self.stop_loss_pct = stop_loss_pct
         self.take_profit_pct = take_profit_pct
+        self.ma_short = ma_short
+        self.ma_long = ma_long
 
-    def run(self, start_date: Optional[str] = None, end_date: Optional[str] = None) -> BacktestResult:
+    def run(
+        self,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        preloaded: Optional[PreloadedData] = None,
+    ) -> BacktestResult:
         """
-        运行回测
+        运行回测（向量化版）
 
         Args:
-            start_date: 开始日期（默认 60 天前）
-            end_date: 结束日期（默认今天）
+            start_date: 开始日期
+            end_date: 结束日期
+            preloaded: 预加载数据（可选，避免重复加载）
         """
-        if not _BAOSTOCK_DB.exists():
-            logger.error("Baostock cache not found")
-            return BacktestResult(
-                start_date="", end_date="", total_trades=0,
-                win_count=0, loss_count=0, neutral_count=0,
-                win_rate=0, avg_pnl_pct=0, avg_net_pnl_pct=0,
-                max_win_pct=0, max_loss_pct=0, sharpe_ratio=0,
+        if preloaded is None:
+            preloaded = PreloadedData(start_date, end_date)
+
+        all_trades: List[TradeRecord] = []
+        min_period = max(self.ma_short, self.ma_long) + 10
+
+        for stock in preloaded.stocks:
+            # 日期范围过滤
+            date_mask = (stock.dates >= (start_date or preloaded.start_date)) & \
+                        (stock.dates <= (end_date or preloaded.end_date))
+            if not date_mask.any():
+                continue
+
+            # 获取预计算的 MA（从缓存）
+            ma_s = stock.get_ma(self.ma_short)
+            ma_l = stock.get_ma(self.ma_long)
+
+            # 信号检测（向量化）
+            signal_mask = _vectorized_signal_detect(stock.closes, ma_s, ma_l)
+            signal_mask &= date_mask
+
+            if not signal_mask.any():
+                continue
+
+            # 交易模拟
+            trades = _vectorized_simulate_trades(
+                stock.dates, stock.opens, stock.highs, stock.lows, stock.closes,
+                signal_mask,
+                holding_days=self.holding_days,
+                stop_loss_pct=self.stop_loss_pct,
+                take_profit_pct=self.take_profit_pct,
+                code=stock.symbol,
+                signal_type="trend",
             )
+            all_trades.extend(trades)
 
-        # 默认日期范围
-        if not end_date:
-            end_date = datetime.now().strftime("%Y-%m-%d")
-        if not start_date:
-            start_date = (datetime.now() - timedelta(days=120)).strftime("%Y-%m-%d")
-
-        conn = sqlite3.connect(str(_BAOSTOCK_DB))
-        try:
-            # 获取所有股票
-            symbols = [r[0] for r in conn.execute(
-                "SELECT DISTINCT symbol FROM stock_daily"
-            ).fetchall()]
-
-            trades = []
-            for symbol in symbols:
-                # 获取该股票的 K 线数据
-                df = conn.execute(
-                    "SELECT date, open, high, low, close, volume "
-                    "FROM stock_daily WHERE symbol = ? ORDER BY date",
-                    (symbol,),
-                ).fetchall()
-
-                if len(df) < 60:
-                    continue
-
-                # 模拟信号检测 + 持有
-                for i in range(60, len(df) - self.holding_days):
-                    signal_date = df[i][0]
-                    if signal_date < start_date or signal_date > end_date:
-                        continue
-
-                    # 模拟信号检测（简化：用趋势通道逻辑）
-                    closes = [r[4] for r in df[max(0, i-50):i+1] if r[4]]
-                    volumes = [r[5] for r in df[max(0, i-20):i+1] if r[5]]
-
-                    if len(closes) < 20 or len(volumes) < 10:
-                        continue
-
-                    # 简化趋势检测
-                    ma20 = sum(closes[-20:]) / 20
-                    ma50 = sum(closes[-50:]) / 50 if len(closes) >= 50 else ma20
-                    current_close = closes[-1]
-
-                    if current_close <= ma20 or ma20 <= ma50:
-                        continue
-
-                    # 入场价 = 次日开盘价
-                    entry_price = df[i+1][1]  # open
-                    if not entry_price or entry_price <= 0:
-                        continue
-
-                    # 模拟持有
-                    exit_price = entry_price
-                    exit_date = signal_date
-                    for j in range(1, min(self.holding_days + 1, len(df) - i)):
-                        day = df[i + j]
-                        high = day[2]
-                        low = day[3]
-                        close = day[4]
-
-                        # 止损
-                        pnl = (low - entry_price) / entry_price * 100
-                        if pnl <= self.stop_loss_pct:
-                            exit_price = entry_price * (1 + self.stop_loss_pct / 100)
-                            exit_date = day[0]
-                            break
-
-                        # 止盈
-                        pnl = (high - entry_price) / entry_price * 100
-                        if pnl >= self.take_profit_pct:
-                            exit_price = entry_price * (1 + self.take_profit_pct / 100)
-                            exit_date = day[0]
-                            break
-
-                        # 到期平仓
-                        exit_price = close
-                        exit_date = day[0]
-
-                    # 计算收益
-                    pnl_pct = (exit_price - entry_price) / entry_price * 100
-                    net_pnl_pct = pnl_pct - ROUND_TRIP_COST_PCT
-
-                    result = "win" if net_pnl_pct > 0.5 else ("loss" if net_pnl_pct < -0.5 else "neutral")
-
-                    actual_days = min(self.holding_days, len(df) - i - 1)
-                    trades.append(TradeRecord(
-                        code=symbol,
-                        signal_date=signal_date,
-                        signal_type="trend",
-                        entry_date=df[i+1][0],
-                        entry_price=round(entry_price, 2),
-                        exit_date=exit_date,
-                        exit_price=round(exit_price, 2),
-                        holding_days=actual_days,
-                        pnl_pct=round(pnl_pct, 2),
-                        net_pnl_pct=round(net_pnl_pct, 2),
-                        result=result,
-                    ))
-        finally:
-            conn.close()
-
-        # 统计
-        return self._compute_stats(trades, start_date, end_date)
+        return self._compute_stats(all_trades, start_date or preloaded.start_date, end_date or preloaded.end_date)
 
     def _compute_stats(self, trades: List[TradeRecord], start_date: str, end_date: str) -> BacktestResult:
         """计算回测统计"""
@@ -246,7 +390,6 @@ class BacktestRunner:
         max_win = max(t.pnl_pct for t in trades)
         max_loss = min(t.pnl_pct for t in trades)
 
-        # Sharpe 比率（简化版）
         returns = [t.net_pnl_pct for t in trades]
         if len(returns) > 1:
             mean_r = sum(returns) / len(returns)
@@ -255,7 +398,6 @@ class BacktestRunner:
         else:
             sharpe = 0
 
-        # 按信号类型统计
         type_stats = {}
         for t in trades:
             st = t.signal_type
@@ -271,18 +413,100 @@ class BacktestRunner:
             stats["avg_pnl"] = stats["pnl_sum"] / stats["count"] if stats["count"] > 0 else 0
 
         return BacktestResult(
-            start_date=start_date,
-            end_date=end_date,
-            total_trades=len(trades),
-            win_count=len(wins),
-            loss_count=len(losses),
-            neutral_count=len(neutrals),
-            win_rate=len(wins) / len(trades),
-            avg_pnl_pct=round(avg_pnl, 2),
-            avg_net_pnl_pct=round(avg_net, 2),
-            max_win_pct=round(max_win, 2),
-            max_loss_pct=round(max_loss, 2),
-            sharpe_ratio=round(sharpe, 2),
-            trades=trades,
-            signal_type_stats=type_stats,
+            start_date=start_date, end_date=end_date, total_trades=len(trades),
+            win_count=len(wins), loss_count=len(losses), neutral_count=len(neutrals),
+            win_rate=len(wins) / len(trades), avg_pnl_pct=round(avg_pnl, 2),
+            avg_net_pnl_pct=round(avg_net, 2), max_win_pct=round(max_win, 2),
+            max_loss_pct=round(max_loss, 2), sharpe_ratio=round(sharpe, 2),
+            trades=trades, signal_type_stats=type_stats,
         )
+
+
+# ═══════════════════════════════════════════════════════════════
+# 参数扫描（预加载一次，快速扫描）
+# ═══════════════════════════════════════════════════════════════
+
+def param_scan(
+    holding_days: Optional[List[int]] = None,
+    stop_loss_pct: Optional[List[float]] = None,
+    take_profit_pct: Optional[List[float]] = None,
+    ma_short: Optional[List[int]] = None,
+    ma_long: Optional[List[int]] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+) -> List[dict]:
+    """
+    参数扫描：预加载数据一次，仅变换参数快速扫描
+
+    核心优化：
+    1. PreloadedData 一次性从内存缓存加载所有股票数据
+    2. 每只股票的 MA 按需计算并缓存（不同 ma_short/ma_long 共享缓存）
+    3. 每个参数组合只做信号检测+交易模拟，无重复 I/O
+
+    示例:
+        results = param_scan(
+            holding_days=[3, 5, 10],
+            stop_loss_pct=[-5, -8, -10],
+            take_profit_pct=[10, 15, 20],
+        )
+    """
+    holding_days = holding_days or [5]
+    stop_loss_pct = stop_loss_pct or [-8.0]
+    take_profit_pct = take_profit_pct or [15.0]
+    ma_short = ma_short or [20]
+    ma_long = ma_long or [50]
+
+    combos = list(product(holding_days, stop_loss_pct, take_profit_pct, ma_short, ma_long))
+    # 过滤无效组合
+    combos = [(hd, sl, tp, ms, ml) for hd, sl, tp, ms, ml in combos if ms < ml]
+
+    logger.info("Param scan: %d valid combinations", len(combos))
+
+    # ── 核心优化：预加载一次 + 预计算所有 MA ──
+    all_ma_periods = sorted(set(ma_short + ma_long))
+    t_load = time.time()
+    preloaded = PreloadedData(start_date, end_date, ma_periods=all_ma_periods)
+    load_ms = (time.time() - t_load) * 1000
+
+    t0 = time.time()
+    results = []
+
+    for hd, sl, tp, ms, ml in combos:
+        runner = BacktestRunner(
+            holding_days=hd, stop_loss_pct=sl, take_profit_pct=tp,
+            ma_short=ms, ma_long=ml,
+        )
+        bt_result = runner.run(preloaded=preloaded)
+        results.append({
+            "params": {"holding_days": hd, "stop_loss_pct": sl,
+                       "take_profit_pct": tp, "ma_short": ms, "ma_long": ml},
+            "result": bt_result,
+        })
+
+    results.sort(key=lambda x: x["result"].avg_net_pnl_pct, reverse=True)
+
+    elapsed = (time.time() - t0) * 1000
+    logger.info("Param scan: load=%.0fms, scan=%.0fms (%.1fms/comb)",
+                load_ms, elapsed, elapsed / len(combos) if combos else 0)
+
+    return results
+
+
+def print_scan_results(results: List[dict], top_n: int = 10):
+    """打印参数扫描结果"""
+    print("\n" + "=" * 80)
+    print("参数扫描结果")
+    print("=" * 80)
+    print(f"{'排名':>4} {'持仓':>4} {'止损':>6} {'止盈':>6} {'MA短':>5} {'MA长':>5} "
+          f"{'交易数':>6} {'胜率':>6} {'净收益':>8} {'Sharpe':>7}")
+    print("-" * 80)
+
+    for i, r in enumerate(results[:top_n], 1):
+        p = r["params"]
+        res = r["result"]
+        print(f"{i:>4} {p['holding_days']:>4} {p['stop_loss_pct']:>6.1f} "
+              f"{p['take_profit_pct']:>6.1f} {p['ma_short']:>5} {p['ma_long']:>5} "
+              f"{res.total_trades:>6} {res.win_rate:>5.1%} "
+              f"{res.avg_net_pnl_pct:>+7.2f}% {res.sharpe_ratio:>7.2f}")
+
+    print("=" * 80)

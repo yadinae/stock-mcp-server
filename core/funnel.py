@@ -85,65 +85,42 @@ def fetch_a_share_universe(page_size: int = 5000) -> List[dict]:
 
 def enrich_with_baostock(stocks: List[dict], min_bars: int = 60) -> List[dict]:
     """
-    向量化版：用 baostock 本地缓存补充均线和量能数据
+    向量化版：用 baostock 内存缓存补充均线和量能数据
 
     核心优化：
-    1. 单次 SQL 批量查询所有股票的 K 线数据
-    2. 用 pandas pivot + rolling 向量化计算均线/量比/涨跌幅
+    1. 使用 BaostockMemoryCache 内存缓存（首次加载后 0 I/O）
+    2. 用 pandas rolling 向量化计算均线/量比/涨跌幅
     3. 消除 N 次逐股 SQLite I/O + Python 循环
     """
-    if not _BAOSTOCK_DB.exists():
-        logger.warning("Baostock cache not found, skipping enrichment")
-        return stocks
-
     if not stocks:
         return stocks
 
-    # ── Step 1: 单次批量查询所有股票 K 线 ──
+    from core.baostock_cache import BaostockMemoryCache
+    cache = BaostockMemoryCache.instance()
+
+    if cache.symbol_count() == 0:
+        logger.warning("Baostock memory cache empty, skipping enrichment")
+        return stocks
+
+    # ── 从内存缓存批量获取数据 ──
     codes = [s.get("code", "") for s in stocks if s.get("code")]
     if not codes:
         return stocks
 
-    conn = sqlite3.connect(str(_BAOSTOCK_DB))
-    try:
-        # 构建 IN 查询（分批，避免 SQLite 参数限制）
-        batch_size = 500
-        all_rows = []
-        for i in range(0, len(codes), batch_size):
-            batch = codes[i:i + batch_size]
-            placeholders = ",".join("?" * len(batch))
-            rows = conn.execute(
-                f"SELECT symbol, date, open, high, low, close, volume "
-                f"FROM stock_daily WHERE symbol IN ({placeholders}) "
-                f"ORDER BY symbol, date DESC",
-                batch,
-            ).fetchall()
-            all_rows.extend(rows)
-    finally:
-        conn.close()
-
-    if not all_rows:
+    batch = cache.get_batch(codes)
+    if not batch:
         logger.info("No baostock data found for %d codes", len(codes))
         return stocks
 
-    # ── Step 2: 构建 DataFrame ──
-    df = pd.DataFrame(all_rows, columns=["symbol", "date", "open", "high", "low", "close", "volume"])
-    df["close"] = pd.to_numeric(df["close"], errors="coerce")
-    df["volume"] = pd.to_numeric(df["volume"], errors="coerce")
-    df["high"] = pd.to_numeric(df["high"], errors="coerce")
-    df["low"] = pd.to_numeric(df["low"], errors="coerce")
-
-    # 每只股票只取最近 250 个 Bar
-    df = df.groupby("symbol").head(250).reset_index(drop=True)
-
-    # ── Step 3: 向量化计算均线/量比/涨跌幅 ──
+    # ── 向量化计算均线/量比/涨跌幅 ──
     enriched_map = {}
 
-    for symbol, grp in df.groupby("symbol"):
-        grp = grp.sort_values("date", ascending=False).reset_index(drop=True)
-        closes = grp["close"].values
-        volumes = grp["volume"].values
-        lows = grp["low"].values
+    for symbol, df in batch.items():
+        # df 已按 date 降序排列，取最近 250 条
+        df = df.head(250)
+        closes = df["close"].values
+        volumes = df["volume"].values
+        lows = df["low"].values
 
         if len(closes) < min_bars:
             continue
@@ -158,7 +135,7 @@ def enrich_with_baostock(stocks: List[dict], min_bars: int = 60) -> List[dict]:
 
         # 量比：当日量 / 20 日均量
         if len(volumes) >= 21:
-            avg_vol_20 = float(np.nanmean(volumes[1:21]))  # 跳过第 0 个（当日）
+            avg_vol_20 = float(np.nanmean(volumes[1:21]))
             today_vol = volumes[0] if not np.isnan(volumes[0]) else 0
             result["volume_avg_20"] = avg_vol_20
             result["volume_ratio"] = round(today_vol / avg_vol_20, 2) if avg_vol_20 > 0 else 0
@@ -182,7 +159,7 @@ def enrich_with_baostock(stocks: List[dict], min_bars: int = 60) -> List[dict]:
 
         enriched_map[symbol] = result
 
-    # ── Step 4: 合并回 stocks 列表 ──
+    # ── 合并回 stocks 列表 ──
     enriched_count = 0
     for s in stocks:
         code = s.get("code", "")
@@ -190,7 +167,7 @@ def enrich_with_baostock(stocks: List[dict], min_bars: int = 60) -> List[dict]:
             s.update(enriched_map[code])
             enriched_count += 1
 
-    logger.info("Enriched %d/%d stocks with baostock data (batch mode)", enriched_count, len(stocks))
+    logger.info("Enriched %d/%d stocks from memory cache", enriched_count, len(stocks))
     return stocks
 
 

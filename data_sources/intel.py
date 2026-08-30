@@ -17,10 +17,22 @@ DB_PATH = os.path.expanduser("~/.stock-mcp/intel.db")
 SECTORS_FILE = os.path.join(os.path.dirname(__file__), "sectors.json")
 CACHE_TTL_RAW = 4 * 3600       # 原始条目 4h
 CACHE_TTL_DIGEST = 6 * 3600    # 摘要 6h
+RECENT_DAYS = 7                 # 只保留最近N天的条目 (借鉴 Vibe-Research)
+PER_SOURCE_LIMIT = 6            # 每个RSS源最多取N条 (借鉴 Vibe-Research)
 
+# 违禁词 (借鉴 Vibe-Research investment-news, 13→27+)
 REDLINE_KEYWORDS = [
-    "代开发票", "贷款", "加微信", "扫码", "返利", "刷单", "博彩", "彩票",
-    "炒股群", "内幕消息", "稳赚", "保本", "荐股", "会员费", "股票群",
+    # 原有: 垃圾广告
+    "代开发票", "贷款", "加微信", "扫码", "返利", "刷单", "炒股群",
+    "内幕消息", "稳赚", "保本", "荐股", "会员费", "股票群",
+    # 新增: 赌博/预测市场
+    "博彩", "彩票", "赌博", "赌场", "下注", "押注",
+    "预测市场", "polymarket", "kalshi", "prediction market",
+    # 新增: 加密货币 (非投资赛道, 避免噪音)
+    "加密货币", "虚拟货币", "比特币", "以太坊", "稳定币",
+    "crypto", "bitcoin", "ethereum", "stablecoin",
+    # 新增: 色情
+    "色情", "porn",
 ]
 
 _SECTORS = None
@@ -89,19 +101,23 @@ def _strip_html(text):
 
 
 def _fetch_url(url, timeout=12):
-    req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "application/rss+xml, application/xml, */*"})
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
+    from core.proxy import proxy_urlopen
+    with proxy_urlopen(url, headers={"Accept": "application/rss+xml, application/xml, */*"}, timeout=timeout) as resp:
         return resp.read()
 
 
 def _parse_feed(xml_bytes, source_name, sector_id, feed_url):
+    """解析RSS/Atom feed, 取最近RECENT_DAYS天、每源最多PER_SOURCE_LIMIT条"""
     items = []
+    cutoff_ts = time.time() - RECENT_DAYS * 86400
     try:
         root = ET.fromstring(xml_bytes)
     except ET.ParseError:
         return items
     # RSS 2.0: rss/channel/item
     for item in root.iter("item"):
+        if len(items) >= PER_SOURCE_LIMIT:
+            break
         title_el = item.find("title")
         if title_el is None or not title_el.text:
             continue
@@ -116,11 +132,16 @@ def _parse_feed(xml_bytes, source_name, sector_id, feed_url):
         link = link_el.text.strip() if link_el is not None and link_el.text else feed_url
         pub_el = item.find("pubDate")
         pub = pub_el.text.strip() if pub_el is not None and pub_el.text else ""
+        # 时间过滤: 跳过超过RECENT_DAYS天的条目
+        if pub and not _is_recent(pub, cutoff_ts):
+            continue
         items.append({"title": title, "url": link, "summary": desc[:500],
                       "source": source_name, "time": pub, "sectorId": sector_id})
     # Atom: feed/entry
     if not items:
         for entry in root.iter("entry"):
+            if len(items) >= PER_SOURCE_LIMIT:
+                break
             title_el = entry.find("title")
             if title_el is None or not title_el.text:
                 continue
@@ -133,9 +154,34 @@ def _parse_feed(xml_bytes, source_name, sector_id, feed_url):
             summary = _strip_html(summary_el.text) if summary_el is not None and summary_el.text else ""
             updated_el = entry.find("updated")
             updated = updated_el.text.strip() if updated_el is not None and updated_el.text else ""
+            if updated and not _is_recent(updated, cutoff_ts):
+                continue
             items.append({"title": title, "url": link, "summary": summary[:500],
                           "source": source_name, "time": updated, "sectorId": sector_id})
     return items
+
+
+def _is_recent(time_str: str, cutoff_ts: float) -> bool:
+    """判断时间字符串是否在cutoff之后 (宽松匹配多种RSS日期格式)"""
+    import email.utils
+    try:
+        # RFC 2822: "Mon, 30 Aug 2026 12:00:00 +0800"
+        parsed = email.utils.parsedate_to_datetime(time_str)
+        return parsed.timestamp() >= cutoff_ts
+    except Exception:
+        pass
+    # ISO 8601: "2026-08-30T12:00:00Z" or "2026-08-30T12:00:00+08:00"
+    try:
+        from datetime import datetime, timezone
+        ts = time_str.replace("Z", "+00:00")
+        parsed = datetime.fromisoformat(ts)
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed.timestamp() >= cutoff_ts
+    except Exception:
+        pass
+    # 无法解析时保留 (不误删)
+    return True
 
 
 def _fetch_sector(sector):
@@ -167,22 +213,45 @@ def _fetch_sector(sector):
 
 
 def _generate_auto_digest(items, sector):
-    """自动摘要（Gateway generateAutoDigest 规则移植）"""
+    """自动摘要（借鉴 Vibe-Research generateAutoDigest + 趋势检测）"""
     points = []
     if not items:
         return ["暂无最新资讯"]
-    points.append(f"📡 {sector['nameZh']}赛道今日有 {len(items)} 条最新资讯，覆盖 {len(set(i['source'] for i in items))} 个信息源")
-    keywords = ["发布", "收购", "合作", "突破", "融资", "获批", "上市", "量产", "增长", "下跌"]
-    found = set()
-    for item in items[:15]:
-        for kw in keywords:
-            if kw in item["title"]:
-                found.add(kw)
-    if found:
-        points.append(f"🔑 热点关键词：{'、'.join(sorted(found))}")
-    for item in items[:3]:
-        title = item["title"] if len(item["title"]) <= 60 else item["title"][:60] + "…"
-        points.append(f"• {title} — {item['source']}")
+    # 基础统计
+    sources = set(i['source'] for i in items)
+    points.append(f"📡 {sector['nameZh']}赛道今日有 {len(items)} 条最新资讯，覆盖 {len(sources)} 个信息源")
+
+    # 关键词热度检测 (两轮: 事件型 + 情绪型)
+    event_kws = ["发布", "收购", "合作", "突破", "融资", "获批", "上市", "量产", "增长",
+                  "下跌", "暴涨", "暴跌", "涨停", "跌停", "并购", "IPO", "裁员", "制裁"]
+    sentiment_kws = ["利好", "利空", "风险", "警告", "机会", "景气", "复苏", "衰退"]
+    event_found = {}
+    sentiment_found = set()
+    for item in items[:20]:
+        title = item.get("title", "")
+        for kw in event_kws:
+            if kw in title:
+                event_found[kw] = event_found.get(kw, 0) + 1
+        for kw in sentiment_kws:
+            if kw in title:
+                sentiment_found.add(kw)
+    if event_found:
+        hot = sorted(event_found.items(), key=lambda x: -x[1])[:5]
+        points.append(f"🔥 热点事件: {' / '.join(f'{k}({v})' for k, v in hot)}")
+    if sentiment_found:
+        points.append(f"💭 情绪信号: {' '.join(sorted(sentiment_found))}")
+
+    # Top 3 标题 (去重 + 截断)
+    seen = set()
+    for item in items[:10]:
+        title = item["title"]
+        if title in seen:
+            continue
+        seen.add(title)
+        short = title if len(title) <= 60 else title[:60] + "…"
+        points.append(f"• {short} — {item['source']}")
+        if len([p for p in points if p.startswith("•")]) >= 3:
+            break
     return points
 
 

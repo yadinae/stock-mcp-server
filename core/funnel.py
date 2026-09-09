@@ -34,29 +34,48 @@ def fetch_a_share_universe(page_size: int = 5500) -> List[dict]:
     获取全市场 A 股列表（带降级链路）
 
     优先级:
-    1. TradingView REST（稳定，周末也能用，5346 stocks）
-    2. 东财 push2（工作日可能可用，周末/数据中心 IP 常 502）
-    3. baostock 内存缓存兜底（T-1 数据）
+    1. TradingView Screener（一步到位：行情+技术指标，SQL-like 过滤）
+    2. TradingView REST（兜底，无技术指标）
+    3. 东财 push2（工作日可能可用，周末/数据中心 IP 常 502）
+    4. baostock 内存缓存兜底（T-1 数据）
 
-    返回: [{code, name, price, change_pct, volume, market_cap, source}]
+    返回: [{code, name, price, change_pct, volume, market_cap, source, ...}]
     """
-    # ── 方案1: TradingView REST ──
+    # ── 方案1: TradingView Screener（最优：自带技术指标） ──
+    stocks = _fetch_via_tv_screener(page_size)
+    if stocks:
+        return stocks
+
+    # ── 方案2: TradingView REST（兜底，无技术指标） ──
     stocks = _fetch_via_tradingview(page_size)
     if stocks:
         return stocks
 
-    # ── 方案2: 东财 push2（降级） ──
+    # ── 方案3: 东财 push2（降级） ──
     stocks = _fetch_via_push2(page_size)
     if stocks:
         return stocks
 
-    # ── 方案3: baostock 内存缓存兜底 ──
+    # ── 方案4: baostock 内存缓存兜底 ──
     stocks = _fetch_via_baostock_cache()
     if stocks:
         return stocks
 
     logger.error("All A-share universe sources failed")
     return []
+
+
+def _fetch_via_tv_screener(page_size: int = 5500) -> List[dict]:
+    """从 TradingView Screener 获取 A 股（带技术指标）"""
+    try:
+        from data_sources.tv_screener import fetch_a_shares
+        stocks = fetch_a_shares(limit=page_size, include_indicators=True)
+        if stocks:
+            logger.info("Fetched %d A-shares via TV Screener (with indicators)", len(stocks))
+        return stocks
+    except Exception as e:
+        logger.warning("TV Screener failed: %s", e)
+        return []
 
 
 def _fetch_via_tradingview(page_size: int = 5500) -> List[dict]:
@@ -341,36 +360,58 @@ def _vectorized_channel_checks(df: pd.DataFrame) -> pd.DataFrame:
     """
     向量化通道检测 — 一次性计算所有 4 个通道的通过状态
 
+    数据来源：
+    - baostock: ma50, ma200, return_120d, change_pct_20d, volume_ratio, dist_from_year_low_pct
+    - TV Screener: rsi, macd, macd_signal, adx, relative_volume（可选增强）
+
     返回: 原始 df 新增 4 列布尔值: _ch_trend, _ch_reversal, _ch_breakout, _ch_accumulation
     """
-    # 确保数值列
-    for col in ["ma50", "ma200", "return_120d", "change_pct_20d", "change_pct",
-                "volume_ratio", "price", "high", "dist_from_year_low_pct"]:
+    # 确保数值列（baostock 和 TV Screener 字段混合存在）
+    baostock_cols = ["ma50", "ma200", "return_120d", "change_pct_20d",
+                     "volume_ratio", "dist_from_year_low_pct"]
+    tv_cols = ["rsi", "macd", "macd_signal", "adx", "relative_volume"]
+    common_cols = ["change_pct", "price", "high"]
+
+    for col in baostock_cols + tv_cols + common_cols:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+        else:
+            df[col] = 0  # 缺失字段补零，避免 KeyError
 
     # 趋势通道: MA50 > MA200 + 120日涨幅 >= 20%
-    df["_ch_trend"] = (df["ma50"] > df["ma200"]) & (df["return_120d"] >= 20)
+    # 若无 MA 数据（纯 TV Screener 源），用 ADX > 25 + RSI > 50 替代
+    if "ma50" in df.columns and df["ma50"].sum() > 0:
+        df["_ch_trend"] = (df["ma50"] > df["ma200"]) & (df["return_120d"] >= 20)
+    elif "adx" in df.columns:
+        df["_ch_trend"] = (df["adx"] > 25) & (df["rsi"] > 50) & (df["change_pct"] > 0)
+    else:
+        df["_ch_trend"] = False
 
     # 反转通道: 20日跌幅 > 10% + 今日小涨 + 放量
+    vol_col = "volume_ratio" if "volume_ratio" in df.columns and df["volume_ratio"].sum() > 0 else "relative_volume"
+    vol_ratio = df[vol_col] if vol_col in df.columns else pd.Series(0, index=df.index)
     df["_ch_reversal"] = (
         (df["change_pct_20d"] < -10) &
         (df["change_pct"] > 0) &
-        (df["volume_ratio"] > 1.2)
+        (vol_ratio > 1.2)
     )
 
-    # 突破通道: 放量 + 涨幅 > 3% + 价格接近最高价
-    # TV REST 无 high 字段时跳过价格接近最高价判断
-    if "high" in df.columns:
-        near_high = pd.Series(False, index=df.index)
-        valid_high = df["high"] > 0
-        near_high[valid_high] = ((df["high"][valid_high] - df["price"][valid_high]) / df["high"][valid_high]) < 0.01
+    # 突破通道: 放量 + 涨幅 > 3% + RSI 确认强势
+    # 或：MACD 金叉 + 放量
+    if "rsi" in df.columns and df["rsi"].sum() > 0:
+        rsi_breakout = (df["rsi"] > 60) & (df["rsi"] < 80)  # 强势但不过热
     else:
-        near_high = pd.Series(True, index=df.index)  # 无 high 数据时不过滤
-    df["_ch_breakout"] = (df["volume_ratio"] > 2.0) & (df["change_pct"] > 3) & near_high
+        rsi_breakout = pd.Series(True, index=df.index)
+    df["_ch_breakout"] = (vol_ratio > 2.0) & (df["change_pct"] > 3) & rsi_breakout
 
-    # 吸筹通道: 距年低 <= 45% + 缩量
-    df["_ch_accumulation"] = (df["dist_from_year_low_pct"] <= 45) & (df["volume_ratio"] < 0.75)
+    # 吸筹通道: 距年低 <= 45% + 缩量 + RSI 超卖区回升
+    if "dist_from_year_low_pct" in df.columns and df["dist_from_year_low_pct"].sum() > 0:
+        dist_low = df["dist_from_year_low_pct"] <= 45
+    elif "rsi" in df.columns:
+        dist_low = df["rsi"] < 40  # RSI 超卖区
+    else:
+        dist_low = pd.Series(True, index=df.index)
+    df["_ch_accumulation"] = dist_low & (vol_ratio < 0.75)
 
     return df
 

@@ -52,6 +52,19 @@ logger = logging.getLogger("run_funnel")
 _BAOSTOCK_DB = _root / "data" / "baostock_cache.db"
 
 
+def _fetch_from_tv_screener() -> List[dict]:
+    """从 TradingView Screener 获取 A 股（一步到位：行情+技术指标）"""
+    try:
+        from data_sources.tv_screener import fetch_a_shares
+        stocks = fetch_a_shares(limit=5500, include_indicators=True)
+        if stocks:
+            logger.info("Fetched %d A-shares via TV Screener (with indicators)", len(stocks))
+        return stocks
+    except Exception as e:
+        logger.warning("TV Screener failed: %s", e)
+        return []
+
+
 def _fetch_from_eastmoney() -> List[dict]:
     """尝试从东财获取全市场 A 股"""
     import httpx
@@ -219,10 +232,15 @@ def run_funnel(context: dict = None) -> PipelineResult:
     ctx = context or {}
     t0 = time.time()
 
-    # 1. 获取全市场 A 股（东财优先 → TradingView → baostock 降级）
+    # 1. 获取全市场 A 股（TV Screener 优先 → 东财 → TradingView REST → baostock 降级）
     logger.info("Step 1: Fetching A-share universe...")
-    universe = _fetch_from_eastmoney()
-    source = "eastmoney"
+    universe = _fetch_from_tv_screener()
+    source = "tv_screener"
+
+    if not universe:
+        logger.warning("TV Screener unavailable, trying Eastmoney...")
+        universe = _fetch_from_eastmoney()
+        source = "eastmoney"
 
     if not universe:
         logger.warning("Eastmoney API unavailable, trying TradingView REST...")
@@ -240,8 +258,10 @@ def run_funnel(context: dict = None) -> PipelineResult:
 
     logger.info("Got %d stocks from %s", len(universe), source)
 
-    # 2. 用 baostock 补充均线/量能数据（东财/TradingView 源需要补齐技术指标）
-    if source in ("eastmoney", "tradingview"):
+    # 2. 补充技术指标（TV Screener 已自带，跳过 baostock）
+    if source == "tv_screener":
+        logger.info("Step 2: TV Screener already provides indicators, skipping enrichment")
+    elif source in ("eastmoney", "tradingview"):
         logger.info("Step 2: Enriching with baostock data...")
         universe = enrich_with_baostock(universe)
     else:

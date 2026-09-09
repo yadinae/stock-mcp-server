@@ -8,7 +8,7 @@ debate_multiagent:
 reflection_audit:
     对已有分析文本做推理审计, 挑出"听起来合理但没有依据"的部分
 
-设计参考: Vibe-Research debate.py + reflection.py
+设计参考: Vibe-Research (https://github.com/simonlin1212/Vibe-Research) debate.py + reflection.py
 数据源: 复用 stock-mcp 现有126个数据工具作为底稿
 LLM: 复用 core/llm_agnes.py (Agnes API)
 """
@@ -16,12 +16,22 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import Optional
 
 from core.llm_agnes import agnes_llm_call
 from core.parallel import run_parallel
 
 logger = logging.getLogger("stock-mcp.debate")
+
+# ── Prompt 版本管理（autoresearch） ──
+try:
+    from tools.handlers.prompt_store import PromptStore
+    _prompt_store = PromptStore()
+    _USE_PROMPT_STORE = True
+except Exception:
+    _prompt_store = None
+    _USE_PROMPT_STORE = False
 
 # ── 事实底稿清单 ──────────────────────────────────────
 # 13项客观数据, 不经LLM, 全部从现有数据工具拉取
@@ -247,6 +257,78 @@ REFLECTION_PROMPT = """你是一名推理审计员。对以下分析文本做逻
 只输出JSON, 不要解释。"""
 
 
+# ── Prompt 获取 helper（支持 autoresearch 版本管理）──
+
+_PROMPT_ROLE_MAP = {
+    "bull_researcher": "bull_researcher",
+    "bear_researcher": "bear_researcher",
+    "cross_examination": "cross_examination",
+    "moderator": "moderator",
+}
+
+def _get_prompt(role: str, fallback: str) -> str:
+    """从 PromptStore 获取当前版本 prompt，失败时用硬编码兜底"""
+    if _USE_PROMPT_STORE and _prompt_store:
+        try:
+            return _prompt_store.get_prompt(role)
+        except Exception:
+            pass
+    return fallback
+
+
+def _record辩论_scores(code: str, bull: str, bear: str, moderator: str, reflection: dict):
+    """记录辩论评分到 PromptStore"""
+    if not (_USE_PROMPT_STORE and _prompt_store):
+        return
+    try:
+        # 评估各角色质量
+        bull_score = _simple_quality_score(bull, "bull")
+        bear_score = _simple_quality_score(bear, "bear")
+        mod_score = _simple_quality_score(moderator, "moderator")
+        ref_score = reflection.get("score", 50) if reflection else 50
+
+        _prompt_store.record_score("bull_researcher", bull_score, stock=code)
+        _prompt_store.record_score("bear_researcher", bear_score, stock=code)
+        _prompt_store.record_score("cross_examination", mod_score, stock=code)
+        _prompt_store.record_score("moderator", mod_score, stock=code)
+
+        _prompt_store.log_run(code, {
+            "bull": {"score": bull_score},
+            "bear": {"score": bear_score},
+            "moderator": {"score": mod_score},
+            "reflection": {"score": ref_score},
+        })
+    except Exception as e:
+        logger.warning("Failed to record debate scores: %s", e)
+
+
+def _simple_quality_score(text: str, role: str) -> float:
+    """简单规则评分（不调 LLM）"""
+    if not text or len(text) < 20:
+        return 20.0
+    score = 50.0
+    # 论点数
+    points = len([l for l in text.split("\n") if l.strip() and len(l.strip()) > 10])
+    if points >= 3:
+        score += 10
+    # 数据引用
+    if "数据" in text or "来源" in text:
+        score += 5
+    # 逻辑链
+    if "推理" in text or "逻辑" in text or "→" in text:
+        score += 5
+    # 长度
+    if 400 <= len(text) <= 3000:
+        score += 10
+    # 格式（### 论点X）
+    if re.search(r"论点[一二三四五]", text):
+        score += 10
+    # 无数据标注
+    if "⚠️ 无数据" in text:
+        score += 5
+    return min(score, 100)
+
+
 def _format_dossier(dossier: dict) -> str:
     """将底稿格式化为LLM可读文本"""
     lines = []
@@ -270,7 +352,7 @@ def _format_dossier(dossier: dict) -> str:
     # 技术指标
     tech = dossier.get("technical", {})
     if tech and "error" not in tech:
-        lines.append(f"\n**技术指标**: {json.dumps(tech, ensure_ascii=False)[:500]}")
+        lines.append(f"\n**技术指标**: {json.dumps(tech, ensure_ascii=False, default=str)[:500]}")
 
     # 新闻
     news = dossier.get("news", [])
@@ -293,7 +375,7 @@ def _format_dossier(dossier: dict) -> str:
     # 财务指标
     fin = dossier.get("financials", {})
     if fin and "error" not in fin:
-        lines.append(f"\n**财务指标**: {json.dumps(fin, ensure_ascii=False)[:500]}")
+        lines.append(f"\n**财务指标**: {json.dumps(fin, ensure_ascii=False, default=str)[:500]}")
 
     # 板块
     boards = dossier.get("boards", {})
@@ -309,7 +391,7 @@ def _format_dossier(dossier: dict) -> str:
     # 资金流
     ff = dossier.get("fund_flow", {})
     if ff and "error" not in ff:
-        lines.append(f"\n**资金流**: {json.dumps(ff, ensure_ascii=False)[:300]}")
+        lines.append(f"\n**资金流**: {json.dumps(ff, ensure_ascii=False, default=str)[:300]}")
 
     return "\n".join(lines)
 
@@ -357,7 +439,7 @@ def _run_debate(
 
     # Step 2: 多方研究员
     try:
-        bull_prompt = BULL_RESEARCHER_PROMPT.format(
+        bull_prompt = _get_prompt("bull_researcher", BULL_RESEARCHER_PROMPT).format(
             code=code, name=dossier.get("name", code),
             dossier=dossier_text,
         )
@@ -375,7 +457,7 @@ def _run_debate(
 
     # Step 3: 空方研究员
     try:
-        bear_prompt = BEAR_RESEARCHER_PROMPT.format(
+        bear_prompt = _get_prompt("bear_researcher", BEAR_RESEARCHER_PROMPT).format(
             code=code, name=dossier.get("name", code),
             dossier=dossier_text,
         )
@@ -395,7 +477,7 @@ def _run_debate(
     cross_examination = ""
     if rounds >= 1:
         try:
-            cross_prompt = CROSS_EXAMINATION_PROMPT.format(
+            cross_prompt = _get_prompt("cross_examination", CROSS_EXAMINATION_PROMPT).format(
                 bull_points=bull_analysis,
                 bear_points=bear_analysis,
                 dossier=dossier_text,
@@ -414,7 +496,7 @@ def _run_debate(
 
     # Step 5: 中立主持
     try:
-        mod_prompt = MODERATOR_PROMPT.format(
+        mod_prompt = _get_prompt("moderator", MODERATOR_PROMPT).format(
             bull_analysis=bull_analysis,
             bear_analysis=bear_analysis,
             cross_examination=cross_examination or "（未进行交叉反驳）",
@@ -439,6 +521,9 @@ def _run_debate(
         "consensus_and_divergence": moderator[:300] + "..." if len(moderator) > 300 else moderator,
         "llm_calls": 3 + (1 if rounds >= 1 else 0) + 1,  # bull + bear + [cross] + moderator
     }
+
+    # 记录评分（autoresearch 数据采集）
+    _record辩论_scores(code, bull_analysis, bear_analysis, moderator, None)
 
     return result
 

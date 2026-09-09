@@ -1,7 +1,7 @@
 """
 AI 审计员 — 只做 veto，不做升级
 
-设计原则（借鉴 WyckoffTradingAgent）：
+设计原则（借鉴 WyckoffTradingAgent https://github.com/YoungCan-Wang/WyckoffTradingAgent）：
 1. 只能将代码规则准入的候选标记为 VETO
 2. 不能将规则未准入的股票加入候选（禁止升级）
 3. LLM 不可用时自动 PASS（代码规则已做安全网）

@@ -17,10 +17,10 @@ DB_PATH = os.path.expanduser("~/.stock-mcp/intel.db")
 SECTORS_FILE = os.path.join(os.path.dirname(__file__), "sectors.json")
 CACHE_TTL_RAW = 4 * 3600       # 原始条目 4h
 CACHE_TTL_DIGEST = 6 * 3600    # 摘要 6h
-RECENT_DAYS = 7                 # 只保留最近N天的条目 (借鉴 Vibe-Research)
-PER_SOURCE_LIMIT = 6            # 每个RSS源最多取N条 (借鉴 Vibe-Research)
+RECENT_DAYS = 7                 # 只保留最近N天的条目 (借鉴 Vibe-Research https://github.com/simonlin1212/Vibe-Research)
+PER_SOURCE_LIMIT = 6            # 每个RSS源最多取N条 (借鉴 Vibe-Research https://github.com/simonlin1212/Vibe-Research)
 
-# 违禁词 (借鉴 Vibe-Research investment-news, 13→27+)
+# 违禁词 (借鉴 Vibe-Research investment-news https://github.com/simonlin1212/Vibe-Research, 13→27+)
 REDLINE_KEYWORDS = [
     # 原有: 垃圾广告
     "代开发票", "贷款", "加微信", "扫码", "返利", "刷单", "炒股群",
@@ -213,7 +213,7 @@ def _fetch_sector(sector):
 
 
 def _generate_auto_digest(items, sector):
-    """自动摘要（借鉴 Vibe-Research generateAutoDigest + 趋势检测）"""
+    """自动摘要（借鉴 Vibe-Research https://github.com/simonlin1212/Vibe-Research generateAutoDigest + 趋势检测）"""
     points = []
     if not items:
         return ["暂无最新资讯"]

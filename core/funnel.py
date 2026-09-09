@@ -1,7 +1,7 @@
 """
 漏斗引擎 v2 — 向量化重写
 
-核心变化（参考 vectorbt 向量化思路）：
+核心变化（参考 vectorbt https://github.com/polakowo/vectorbt 向量化思路）：
 - enrich_with_baostock: 单次批量 SQL 查询 + pandas rolling 计算，替代 N 次逐股查询
 - 所有 Stage 函数: DataFrame 布尔掩码替代 Python for 循环
 - 均线/量比/涨跌幅计算全部使用 pandas 向量化操作

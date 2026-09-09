@@ -1,7 +1,7 @@
 """
 消融测试框架 — 对比不同漏斗配置的筛选效果
 
-借鉴 WyckoffTradingAgent 的消融测试设计：
+借鉴 WyckoffTradingAgent (https://github.com/YoungCan-Wang/WyckoffTradingAgent) 的消融测试设计：
 - 每次只改变一个变量，对比效果
 - 记录通过率、分布、候选重叠度
 - 支持 A/B 配置对比

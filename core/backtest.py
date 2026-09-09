@@ -1,7 +1,7 @@
 """
 回测验证框架 v2 — 向量化重写
 
-核心变化（参考 vectorbt 向量化思路）：
+核心变化（参考 vectorbt https://github.com/polakowo/vectorbt 向量化思路）：
 - 使用 BaostockMemoryCache 内存缓存（消除 SQLite I/O）
 - 所有 MA/信号计算使用 pandas rolling 向量化
 - 交易模拟使用 NumPy 矩阵运算替代逐 Bar 循环

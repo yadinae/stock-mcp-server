@@ -2,7 +2,7 @@
 """
 代码质量门禁 — 函数长度 + 重复度检查
 
-借鉴 WyckoffTradingAgent 的 quality_gate.py：
+借鉴 WyckoffTradingAgent (https://github.com/YoungCan-Wang/WyckoffTradingAgent) 的 quality_gate.py：
 - 函数长度硬限制（核心模块 ≤ 70 行，脚本 ≤ 100 行）
 - 重复代码检测
 - 无未使用导入

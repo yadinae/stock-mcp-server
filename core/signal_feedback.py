@@ -1,7 +1,7 @@
 """
 信号反馈闭环 — 追踪推荐效果，动态调整策略
 
-设计原则（借鉴 WyckoffTradingAgent）：
+设计原则（借鉴 WyckoffTradingAgent https://github.com/YoungCan-Wang/WyckoffTradingAgent）：
 - shadow 池：信号类型在观察中，不改变正式候选
 - 激活门槛：≥30 个成熟样本 + 胜率 > 50%
 - 每个信号类型独立追踪

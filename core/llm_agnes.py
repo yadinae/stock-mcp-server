@@ -55,39 +55,53 @@ def agnes_llm_call(
         "temperature": temperature,
     }
 
-    try:
-        resp = httpx.post(
-            AGNES_API_URL,
-            json=payload,
-            headers={
-                "Authorization": f"Bearer {AGNES_API_KEY}",
-                "Content-Type": "application/json",
-            },
-            timeout=30,
-        )
-        resp.raise_for_status()
-        data = resp.json()
+    import time as _time
+    last_err = None
+    for attempt in range(3):
+        try:
+            resp = httpx.post(
+                AGNES_API_URL,
+                json=payload,
+                headers={
+                    "Authorization": f"Bearer {AGNES_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                timeout=30,
+            )
+            resp.raise_for_status()
+            data = resp.json()
 
-        content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-        reasoning = data.get("choices", [{}])[0].get("message", {}).get("reasoning_content", "")
+            content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+            reasoning = data.get("choices", [{}])[0].get("message", {}).get("reasoning_content", "")
 
-        # Agnes 可能把思考过程放在 reasoning_content，实际输出在 content
-        # 如果 content 为空，尝试从 reasoning 提取 JSON
-        if not content.strip() and reasoning:
-            # 尝试从 reasoning 中提取 JSON
-            if "{" in reasoning:
-                start = reasoning.index("{")
-                end = reasoning.rindex("}") + 1
-                content = reasoning[start:end]
+            # Agnes 可能把思考过程放在 reasoning_content，实际输出在 content
+            # 如果 content 为空，尝试从 reasoning 提取 JSON
+            if not content.strip() and reasoning:
+                # 尝试从 reasoning 中提取 JSON
+                if "{" in reasoning:
+                    start = reasoning.index("{")
+                    end = reasoning.rindex("}") + 1
+                    content = reasoning[start:end]
 
-        return content.strip()
+            return content.strip()
 
-    except httpx.HTTPStatusError as e:
-        logger.error("Agnes API HTTP error: %s", e)
-        raise
-    except Exception as e:
-        logger.error("Agnes API error: %s", e)
-        raise
+        except httpx.HTTPStatusError as e:
+            last_err = e
+            if e.response.status_code == 429 and attempt < 2:
+                wait = 15 * (attempt + 1)
+                logger.warning("Agnes API 429 限流 (第%d次)，等待 %ds 重试...", attempt + 1, wait)
+                _time.sleep(wait)
+                continue
+            logger.error("Agnes API HTTP error: %s", e)
+            raise
+        except Exception as e:
+            last_err = e
+            if attempt < 2:
+                logger.warning("Agnes API 异常 (%s)，重试...", str(e)[:50])
+                _time.sleep(3)
+                continue
+            logger.error("Agnes API error: %s", e)
+            raise
 
 
 def create_auditor_with_llm(

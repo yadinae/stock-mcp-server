@@ -1,10 +1,7 @@
 """
-Agnes LLM 适配器 — 为 AI 审计员提供 LLM 调用能力
+LLM 适配器 — 为 AI 审计员/辩论模块提供 LLM 调用能力
 
-用法:
-    from core.llm_agnes import create_auditor_with_llm
-    auditor = create_auditor_with_llm()
-    result = auditor.audit(candidates)
+配置来源: ~/.hermes/scripts/llm_provider.json（与雪球定时任务共享）
 """
 from __future__ import annotations
 
@@ -17,12 +14,27 @@ import httpx
 
 logger = logging.getLogger("stock-mcp.llm_agnes")
 
-AGNES_API_URL = "https://apihub.agnes-ai.com/v1/chat/completions"
-AGNES_API_KEY = os.environ.get(
-    "AGNES_API_KEY",
-    "sk-184qqj2TeGnoy7DBjfGSkbJ71nxBDklOXh2HvCzgfDUFyAWO",
-)
-AGNES_MODEL = "agnes-2.0-flash"
+_PROVIDER_CONFIG = "/home/admin/.hermes/scripts/llm_provider.json"
+_PROVIDER_CONFIG_FALLBACK = "/home/admin/.hermes/scripts/xueqiu_articles/llm_config.json"
+
+
+def _load_provider() -> dict:
+    """加载统一 LLM provider 配置"""
+    for path in (_PROVIDER_CONFIG, _PROVIDER_CONFIG_FALLBACK):
+        if os.path.exists(path):
+            with open(path) as f:
+                return json.load(f)
+    return {
+        "base_url": os.environ.get("LLM_BASE_URL", "https://apihub.agnes-ai.com/v1"),
+        "api_key": os.environ.get("AGNES_API_KEY", ""),
+        "model": os.environ.get("LLM_MODEL", "agnes-2.0-flash"),
+    }
+
+
+_PROVIDER = _load_provider()
+LLM_API_URL = _PROVIDER["base_url"].rstrip("/") + "/chat/completions"
+LLM_API_KEY = _PROVIDER.get("api_key", "")
+LLM_MODEL = _PROVIDER.get("model", "agnes-2.0-flash")
 
 
 def agnes_llm_call(
@@ -49,7 +61,7 @@ def agnes_llm_call(
     ]
 
     payload = {
-        "model": AGNES_MODEL,
+        "model": LLM_MODEL,
         "messages": messages,
         "max_tokens": max_tokens,
         "temperature": temperature,
@@ -60,10 +72,10 @@ def agnes_llm_call(
     for attempt in range(3):
         try:
             resp = httpx.post(
-                AGNES_API_URL,
+                LLM_API_URL,
                 json=payload,
                 headers={
-                    "Authorization": f"Bearer {AGNES_API_KEY}",
+                    "Authorization": f"Bearer {LLM_API_KEY}",
                     "Content-Type": "application/json",
                 },
                 timeout=30,

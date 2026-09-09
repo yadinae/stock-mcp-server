@@ -77,8 +77,10 @@ def agnes_llm_call(
                 headers={
                     "Authorization": f"Bearer {LLM_API_KEY}",
                     "Content-Type": "application/json",
+                    # opencode-go 强制要求 x-opencode-session header
+                    "x-opencode-session": "hermes-stock-mcp",
                 },
-                timeout=30,
+                timeout=120,  # mimo-v2.5 推理模型响应较慢
             )
             resp.raise_for_status()
             data = resp.json()

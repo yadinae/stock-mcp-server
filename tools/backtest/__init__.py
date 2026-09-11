@@ -3,13 +3,20 @@
 
 提供 run_backtest() 函数，供 server.py 的 MCP 工具调用。
 """
-
 from __future__ import annotations
 
 from typing import Any
 
 from .strategies import list_strategies, run_strategy, STRATEGY_DEFAULT_PARAMS
-from .simulator import run_simulation
+from .simulator import (
+    run_simulation,
+    SlippageModel,
+    PercentageSlippage,
+    FlatSlippage,
+    VolumeSlippage,
+    create_slippage_model,
+    list_slippage_models,
+)
 from .report import format_report
 
 
@@ -20,6 +27,8 @@ def run_backtest(
     days: int = 365,
     capital: float = 100000.0,
     params: dict | None = None,
+    slippage_model: str | None = None,
+    slippage_params: dict | None = None,
 ) -> dict[str, Any]:
     """运行回测
 
@@ -30,6 +39,8 @@ def run_backtest(
         days: 实际使用的K线天数
         capital: 初始资金
         params: 策略参数覆盖
+        slippage_model: 滑点模型名 (percentage/flat/volume/None=默认)
+        slippage_params: 滑点模型参数覆盖
 
     Returns:
         回测报告字典
@@ -46,6 +57,11 @@ def run_backtest(
     if params:
         strategy_params.update(params)
 
+    # 创建滑点模型
+    sm = None
+    if slippage_model:
+        sm = create_slippage_model(slippage_model, **(slippage_params or {}))
+
     # 运行策略生成信号
     signals = run_strategy(strategy, records, **strategy_params)
 
@@ -54,6 +70,7 @@ def run_backtest(
         records=records,
         signals=signals,
         initial_capital=capital,
+        slippage_model=sm,
     )
 
     # 格式化报告

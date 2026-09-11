@@ -21,12 +21,10 @@ PUSH2_FF_DAY = "https://push2his.eastmoney.com/api/qt/stock/fflow/daykline/get"
 
 
 def _http_get(url: str, timeout: float = 12.0) -> str:
-    req = urllib.request.Request(url, headers={
-        "User-Agent": UA, "Referer": "https://finance.sina.com.cn/",
-        "Accept": "*/*",
-    })
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return resp.read().decode("utf-8", "replace")
+    from core.proxy import proxy_request
+    return proxy_request(url, headers={
+        "Accept": "application/json, text/plain, */*",
+    }, timeout=timeout)
 
 
 def _code_to_sina(code: str) -> str:

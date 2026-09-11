@@ -37,10 +37,9 @@ def _norm(symbol: str) -> str:
 
 
 def _kraken_get(path: str, timeout: float = 12.0):
-    req = urllib.request.Request(f"{KRAKEN_BASE}{path}", headers={
-        "User-Agent": UA, "Accept": "application/json",
-    })
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
+    req_url = f"{KRAKEN_BASE}{path}"
+    from core.proxy import proxy_urlopen
+    with proxy_urlopen(req_url, headers={"User-Agent": UA, "Accept": "application/json"}, timeout=timeout) as resp:
         return json.loads(resp.read().decode())
 
 

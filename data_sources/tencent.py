@@ -13,6 +13,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 import httpx
+from core.proxy import get_proxy_url
 
 from core.cache import TTLCache, get_cache, make_cache_key
 from core.cache import TTL_REALTIME, TTL_KLINE, TTL_STOCK_INFO
@@ -84,7 +85,7 @@ def _fetch_tx_realtime(codes: list[str]) -> list[dict[str, Any]]:
     url = f"https://qt.gtimg.cn/q={','.join(tx_codes)}"
     health = get_health_tracker()
     try:
-        resp = httpx.get(url, headers=TX_HEADERS, timeout=HTTP_TIMEOUT)
+        resp = httpx.get(url, headers=TX_HEADERS, timeout=HTTP_TIMEOUT, proxy=get_proxy_url())
         resp.encoding = "gbk"
         result = _parse_tx_response(resp.text)
         health.record_success("tencent")
@@ -118,7 +119,9 @@ def _parse_tx_response(text: str) -> list[dict[str, Any]]:
             change_pct = float(parts[32]) if len(parts) > 32 and parts[32] else 0
             amount = float(parts[37]) if len(parts) > 37 and parts[37] else 0
 
-            change_pct = change_pct / 100 if abs(change_pct) > 10 else change_pct
+            # Tencent API parts[32] is already in percentage form (e.g. 16.16 means 16.16%)
+            # No conversion needed — the old heuristic (divide by 100 if > 10) was wrong
+            # for stocks with >10% daily moves (e.g. 16.16% got turned into 0.16%)
             change_amount = round(price - pre_close, 2) if pre_close else 0
 
             results.append({
@@ -242,7 +245,7 @@ def get_kline(code: str, days: int = 60) -> dict[str, Any]:
             f"https://web.ifzq.gtimg.cn/appstock/app/fqkline/"
             f"get?param={tx_code},day,,,{days},qfq"
         )
-        resp = httpx.get(url, headers=KLINE_HEADERS, timeout=HTTP_TIMEOUT)
+        resp = httpx.get(url, headers=KLINE_HEADERS, timeout=HTTP_TIMEOUT, proxy=get_proxy_url())
         data = resp.json()
         records = _parse_kline_response(data, tx_code)
 

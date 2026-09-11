@@ -15,25 +15,21 @@ DATACENTER_API = "https://datacenter-web.eastmoney.com/api/data/v1/get"
 
 
 def _http_get(url: str, referer: str = "https://emweb.securities.eastmoney.com/", timeout: float = 12.0):
-    req = urllib.request.Request(url, headers={
-        "User-Agent": UA,
+    from core.proxy import proxy_request
+    return proxy_request(url, headers={
         "Referer": referer,
         "Accept": "application/json, text/plain, */*",
-    })
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return resp.read().decode("utf-8", "replace")
+    }, timeout=timeout)
 
 
 def _http_post(url: str, data: dict, referer: str = "https://emweb.securities.eastmoney.com/", timeout: float = 12.0):
+    from core.proxy import proxy_request
     body = urllib.parse.urlencode(data).encode()
-    req = urllib.request.Request(url, data=body, headers={
-        "User-Agent": UA,
+    return proxy_request(url, data=body, headers={
         "Referer": referer,
         "Content-Type": "application/x-www-form-urlencoded",
         "Accept": "application/json, text/plain, */*",
-    })
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return resp.read().decode("utf-8", "replace")
+    }, timeout=timeout)
 
 
 def extract_code(code: str) -> str:

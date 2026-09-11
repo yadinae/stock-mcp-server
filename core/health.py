@@ -134,3 +134,50 @@ _health = DataSourceHealth()
 
 def get_health_tracker() -> DataSourceHealth:
     return _health
+
+
+# ── 实时探测 ─────────────────────────────────────────────
+# 与 in-memory 统计互补：主动 ping 各数据源验证可达性
+
+PROBE_SOURCES = {
+    "tencent_quote": {"url": "https://qt.gtimg.cn/q=sh600519", "timeout": 5, "encoding": "gbk"},
+    "eastmoney_push2": {"url": "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=1&fs=m:0+t:6", "timeout": 5},
+    "yahoo_finance": {"url": "https://query1.finance.yahoo.com/v8/finance/chart/AAPL?range=1d", "timeout": 8},
+    "tv_rest": {"url": "https://scanner.tradingview.com/china/scan", "timeout": 8, "method": "POST",
+                "body": '{"columns":["name"],"filter":[{"operation":"equal","arguments":["SSE:600519"]}],"range":[0,1]}'},
+    "binance": {"url": "https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT", "timeout": 5},
+}
+
+
+def probe_all_sources() -> list[dict]:
+    """实时探测所有数据源的可达性和延迟（替代 Workers 内存统计不可靠的问题）"""
+    import urllib.request
+    import json as _json
+
+    results = []
+    for name, cfg in PROBE_SOURCES.items():
+        start = time.time()
+        try:
+            req = urllib.request.Request(
+                cfg["url"],
+                data=cfg.get("body", "").encode() if cfg.get("body") else None,
+                headers={"User-Agent": "stock-mcp-server/1.0"},
+            )
+            with urllib.request.urlopen(req, timeout=cfg["timeout"]) as resp:
+                data = resp.read()
+                elapsed_ms = round((time.time() - start) * 1000)
+                encoding = cfg.get("encoding", "utf-8")
+                text = data.decode(encoding, errors="replace")[:200]
+                results.append({
+                    "name": name, "status": "ok",
+                    "latency_ms": elapsed_ms,
+                    "sample": text[:80],
+                })
+        except Exception as e:
+            elapsed_ms = round((time.time() - start) * 1000)
+            results.append({
+                "name": name, "status": "error",
+                "latency_ms": elapsed_ms,
+                "error": str(e)[:80],
+            })
+    return results

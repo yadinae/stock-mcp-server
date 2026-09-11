@@ -403,6 +403,41 @@ def calc_mfi(closes: np.ndarray, highs: np.ndarray, lows: np.ndarray,
     return {"value": mfi, "status": status}
 
 
+def calc_vwap(closes: np.ndarray, highs: np.ndarray, lows: np.ndarray,
+              volumes: np.ndarray, N: int = 20) -> dict[str, Any]:
+    """VWAP 成交量加权均价（N日滚动机构基准成本）
+
+    VWAP = Σ(Typical Price × Volume) / Σ(Volume) over N periods
+    当前价 > VWAP → 机构浮盈（多头优势）
+    当前价 < VWAP → 机构浮亏（空头优势）
+    """
+    if len(closes) < N:
+        return {"value": 0, "pct": 0, "signal": "数据不足"}
+
+    tp = (highs + lows + closes) / 3
+    tp_vol = tp * volumes
+
+    vwap_seq = SUM(tp_vol, N) / (SUM(volumes, N) + 1e-10)
+    vwap = RD(vwap_seq[-1], 2)
+
+    current_price = closes[-1]
+    if vwap > 0:
+        pct = RD((current_price - vwap) / vwap * 100, 2)
+    else:
+        pct = 0
+
+    if pct > 3:
+        signal = "远高于VWAP（机构大幅获利，注意获利回吐）"
+    elif pct > 0:
+        signal = "高于VWAP（多头优势）"
+    elif pct > -3:
+        signal = "低于VWAP（空头优势）"
+    else:
+        signal = "远低于VWAP（超跌，机构被套）"
+
+    return {"value": vwap, "pct": pct, "signal": signal}
+
+
 def calc_sar(highs: np.ndarray, lows: np.ndarray,
              N: int = 10, S: float = 2, M: int = 20) -> dict[str, Any]:
     """SAR 抛物转向 — 返回最新值"""
@@ -634,6 +669,24 @@ def analyze(records: list[dict], code: str = "") -> dict[str, Any]:
     bollinger = calc_bollinger(closes)
     volume_ratio = calc_volume_ratio(records)
 
+    # ══ v2 新增指标（必须在评分之前计算） ══
+    kdj = calc_kdj(closes, highs, lows)
+    cci = calc_cci(closes, highs, lows)
+    wr = calc_wr(closes, highs, lows)
+    atr = calc_atr(closes, highs, lows)
+    dmi = calc_dmi(closes, highs, lows)
+    obv = calc_obv(closes, volumes)
+    mfi = calc_mfi(closes, highs, lows, volumes)
+
+    new_indicators = {
+        "kdj": kdj, "cci": cci, "wr": wr, "atr": atr,
+        "dmi": dmi, "obv": obv, "mfi": mfi,
+    }
+
+    if len(closes) >= 20 and len(volumes) > 0:
+        vwap = calc_vwap(closes, highs, lows, volumes)
+        new_indicators["vwap"] = vwap
+
     bias_ma5 = calc_bias(closes, trend.get("ma5", 0))
     bias_ma20 = calc_bias(closes, trend.get("ma20", 0))
 
@@ -663,6 +716,42 @@ def analyze(records: list[dict], code: str = "") -> dict[str, Any]:
 
     score = max(0, min(100, score))
 
+    # ── v2.1 增强评分维度（ATR/OBV/CCI/VWAP） ──
+    # ATR: 高波动降低稳定性评分
+    atr_val = atr.get("pct", 0)
+    if atr_val > 5:
+        score -= 5  # 高波动
+    elif atr_val < 1:
+        score += 3  # 低波动加分
+
+    # OBV: 量价配合
+    if obv.get("signal", "").startswith("OBV在均线上方"):
+        score += 5  # 量能支持
+    elif obv.get("signal", "").startswith("OBV在均线下方"):
+        score -= 3  # 量能不足
+
+    # CCI: 极端值修正
+    cci_val = cci.get("value", 0)
+    if cci_val > 200:
+        score -= 8  # 极度超买
+    elif cci_val > 100:
+        score += 3  # 强势
+    elif cci_val < -200:
+        score += 5  # 极度超卖，反弹机会
+    elif cci_val < -100:
+        score -= 3  # 弱势
+
+    # VWAP: 机构成本线
+    vwap_pct = new_indicators.get("vwap", {}).get("pct", 0)
+    if vwap_pct > 5:
+        score -= 5  # 远高于机构成本，获利回吐风险
+    elif vwap_pct > 0:
+        score += 3  # 在机构成本之上
+    elif vwap_pct < -5:
+        score -= 3  # 远低于机构成本，套牢盘压力
+
+    score = max(0, min(100, score))
+
     if score >= 75:
         advice = "买入"
     elif score >= 60:
@@ -677,27 +766,6 @@ def analyze(records: list[dict], code: str = "") -> dict[str, Any]:
     # ── Ichimoku + K线形态 ──
     ichimoku = calc_ichimoku(records)
     candle_patterns = identify_candle_patterns(records)
-
-    # ══════════════════════════════════════════════════════
-    # v2 新增指标
-    # ══════════════════════════════════════════════════════
-    kdj = calc_kdj(closes, highs, lows)
-    cci = calc_cci(closes, highs, lows)
-    wr = calc_wr(closes, highs, lows)
-    atr = calc_atr(closes, highs, lows)
-    dmi = calc_dmi(closes, highs, lows)
-    obv = calc_obv(closes, volumes)
-    mfi = calc_mfi(closes, highs, lows, volumes)
-
-    new_indicators = {
-        "kdj": kdj,
-        "cci": cci,
-        "wr": wr,
-        "atr": atr,
-        "dmi": dmi,
-        "obv": obv,
-        "mfi": mfi,
-    }
 
     # ── SAR 需要额外计算（非向量化，有循环） ──
     if len(closes) >= 10:
@@ -724,3 +792,79 @@ def analyze(records: list[dict], code: str = "") -> dict[str, Any]:
 
     cache.set(cache_key, result, TTL_TECHNICAL)
     return result
+
+
+# ══════════════════════════════════════════════════════════
+# 指标注册表（参考 easy_tdx IndicatorSpec 模式）
+# ══════════════════════════════════════════════════════════
+
+from dataclasses import dataclass, field
+
+
+@dataclass(frozen=True)
+class IndicatorSpec:
+    """单个技术指标的元数据 — 声明式注册，运行时可校验输入/输出"""
+    name: str
+    inputs: tuple[str, ...]         # 依赖的 OHLCV 列名
+    outputs: tuple[str, ...]        # 输出字段名
+    func_name: str                  # 对应的 calc_* 函数名
+    default_params: dict[str, int | float] = field(default_factory=dict)
+    description: str = ""
+
+
+_INDICATOR_REGISTRY: dict[str, IndicatorSpec] = {}
+
+
+def _reg_indicator(
+    name: str,
+    inputs: tuple[str, ...],
+    outputs: tuple[str, ...],
+    func_name: str,
+    defaults: dict[str, int | float] | None = None,
+    desc: str = "",
+) -> None:
+    _INDICATOR_REGISTRY[name.upper()] = IndicatorSpec(
+        name=name.upper(),
+        inputs=inputs,
+        outputs=outputs,
+        func_name=func_name,
+        default_params=defaults or {},
+        description=desc,
+    )
+
+
+# 注册所有已有指标
+_reg_indicator("MACD",    ("close",),                ("dif", "dea", "bar", "status", "signal"), "calc_macd",    {}, "MACD 指数平滑异同移动平均线")
+_reg_indicator("RSI",     ("close",),                ("value", "status"),                       "calc_rsi",     {"period": 14}, "RSI 相对强弱指标")
+_reg_indicator("BOLL",    ("close",),                ("upper", "middle", "lower", "bandwidth", "position"), "calc_bollinger", {"period": 20}, "布林带")
+_reg_indicator("KDJ",     ("close", "high", "low"),  ("k", "d", "j", "signal"),                 "calc_kdj",     {}, "KDJ 随机指标")
+_reg_indicator("CCI",     ("close", "high", "low"),  ("value", "status"),                       "calc_cci",     {"N": 14}, "CCI 顺势指标")
+_reg_indicator("WR",      ("close", "high", "low"),  ("wr", "wr1", "signal"),                   "calc_wr",      {}, "W&R 威廉指标")
+_reg_indicator("ATR",     ("close", "high", "low"),  ("value", "pct", "status"),                "calc_atr",     {"N": 20}, "ATR 真实波动均值")
+_reg_indicator("DMI",     ("close", "high", "low"),  ("pdi", "mdi", "adx", "adxr", "trend"),    "calc_dmi",     {}, "DMI 动向指标")
+_reg_indicator("OBV",     ("close", "volume"),       ("value", "obv_ma", "signal"),             "calc_obv",     {}, "OBV 能量潮")
+_reg_indicator("MFI",     ("close", "high", "low", "volume"), ("value", "status"),              "calc_mfi",     {"N": 14}, "MFI 资金流量指标")
+_reg_indicator("VWAP",    ("close", "high", "low", "volume"), ("value", "pct", "signal"),       "calc_vwap",    {"N": 20}, "VWAP 成交量加权均价")
+_reg_indicator("SAR",     ("high", "low"),           ("value", "direction", "flipped", "status"), "calc_sar",   {}, "SAR 抛物转向")
+_reg_indicator("TREND",   ("close",),                ("status", "score", "ma5", "ma10", "ma20", "ma60"), "calc_trend_status", {}, "趋势状态（均线排列）")
+_reg_indicator("ICHIMOKU",(),                        ("tenkan", "kijun", "span_a", "span_b", "chiko", "trend"), "calc_ichimoku", {}, "一目均衡表")
+_reg_indicator("VRATIO",  (),                        (),                                       "calc_volume_ratio", {}, "量比")
+
+
+def list_indicators() -> list[dict[str, object]]:
+    """返回所有已注册指标的元数据"""
+    return [
+        {
+            "name": spec.name,
+            "description": spec.description,
+            "inputs": list(spec.inputs),
+            "outputs": list(spec.outputs),
+            "default_params": dict(spec.default_params),
+        }
+        for spec in _INDICATOR_REGISTRY.values()
+    ]
+
+
+def get_indicator_spec(name: str) -> IndicatorSpec | None:
+    """按名称获取指标规格"""
+    return _INDICATOR_REGISTRY.get(name.upper())

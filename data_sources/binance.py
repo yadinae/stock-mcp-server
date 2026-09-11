@@ -21,7 +21,8 @@ def _binance_get(path: str, timeout: float = 12.0):
     req = urllib.request.Request(f"{BINANCE_API}{path}", headers={
         "User-Agent": UA, "Accept": "application/json",
     })
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
+    from core.proxy import proxy_urlopen
+    with proxy_urlopen(req.full_url, headers={"User-Agent": UA, "Accept": "application/json"}, timeout=timeout) as resp:
         return json.loads(resp.read().decode())
 
 

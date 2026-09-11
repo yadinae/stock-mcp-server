@@ -71,8 +71,16 @@ def search_tradingview_market(query: str = "", filter_type: str = ""):
 
 # ─── technical_batch_scan: 批量技术指标扫描 ───
 
-def technical_batch_scan(codes: str = "", days: int = 90, filter_str: str = ""):
-    """批量技术指标扫描。codes 逗号分隔 ≤30 只。"""
+def technical_batch_scan(codes: str = "", days: int = 90, filter_str: str = "",
+                         workers: int = 0) -> dict:
+    """批量技术指标扫描 — 支持并发执行 + 结果缓存
+
+    Args:
+        codes: 逗号分隔的股票代码（≤50只）
+        days: K线天数
+        filter_str: 筛选条件 (macd=golden,rsi=oversold,min_score=70)
+        workers: 并发数（0=串行，2+=线程池）
+    """
     codes = [c.strip() for c in (codes or "").split(",") if c.strip()][:30]
     if not codes:
         return {"error": "codes 不能为空"}
@@ -80,30 +88,47 @@ def technical_batch_scan(codes: str = "", days: int = 90, filter_str: str = ""):
 
     from data_sources import tencent
     from tools.technical import analyze as analyze_technical
+    from core.cache import get_cache, make_cache_key, TTL_TECHNICAL
+    import concurrent.futures
 
-    results = []
-    for code in codes:
+    cache = get_cache()
+
+    def _scan_one(code: str) -> dict:
+        """扫描单只股票（含缓存）"""
+        cache_key = make_cache_key("batch_scan", code, str(days))
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return cached
+
         try:
             kline = tencent.get_kline(code, days=days)
             records = kline.get("records", [])
             if not records:
-                results.append({"code": code, "name": code, "error": kline.get("error", "无K线")})
-                continue
+                return {"code": code, "name": code, "error": kline.get("error", "无K线")}
             tech = analyze_technical(records, code)
-            name = tech.get("name") or code
-            results.append({
-                "code": code, "name": name,
+            result = {
+                "code": code,
+                "name": tech.get("name") or code,
                 "score": tech.get("score", 0),
                 "trend": tech.get("trend", {}).get("status", ""),
                 "macd": tech.get("macd", {}).get("signal", ""),
                 "rsi": tech.get("rsi", {}).get("value", None),
                 "boll": tech.get("bollinger", {}).get("position", ""),
-                "volume_ratio": tech.get("volume", {}).get("volume_ratio", 0),
+                "volume_ratio": tech.get("volume_ratio", 0),
                 "suggestion": tech.get("suggestion", ""),
                 "close": tech.get("close", None),
-            })
+            }
+            cache.set(cache_key, result, TTL_TECHNICAL)
+            return result
         except Exception as e:
-            results.append({"code": code, "name": code, "error": str(e)[:100]})
+            return {"code": code, "name": code, "error": str(e)[:100]}
+
+    # 并发执行
+    if workers > 1 and len(codes) > 3:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=min(workers, len(codes))) as pool:
+            results = list(pool.map(_scan_one, codes))
+    else:
+        results = [_scan_one(c) for c in codes]
 
     # 筛选
     if filter_str:
@@ -259,15 +284,15 @@ def strategy_scan(strategy: str = ""):
 # ─── stock_score: 个股综合评分 ───
 
 def stock_score(code: str):
-    """个股综合评分 — 估值 + 技术面 + 资金流多维评分 0-100"""
+    """个股综合评分 — 基于因子注册表的多维评分 0-100"""
     code = code.strip()
     if not code:
         return {"error": "股票代码不能为空"}
 
     from data_sources import tencent, em_market
     from tools.technical import analyze as analyze_technical
+    from tools.factors import compute_stock_score as _compute_stock_score
 
-    result = {"code": code, "score": 0, "dimensions": {}, "suggestion": ""}
     try:
         quote = tencent.get_realtime_quote(code)
     except Exception as e:
@@ -275,71 +300,24 @@ def stock_score(code: str):
     if not quote:
         return {"code": code, "error": "无行情数据", "score": 0}
 
-    result["name"] = quote.get("name", code)
-    result["price"] = quote.get("price", 0)
-    result["change_pct"] = quote.get("change_pct", 0)
-
-    # 技术面 0-40
-    tech_score = 20
+    # 技术面分析
+    tech = {}
     try:
         kline = tencent.get_kline(code, days=120)
         tech = analyze_technical(kline.get("records", []), code)
-        if tech.get("trend", {}).get("status") in ("强势多头", "多头排列"):
-            tech_score += 12
-        elif tech.get("trend", {}).get("status") == "弱势多头":
-            tech_score += 6
-        rsi = tech.get("rsi", {}).get("value")
-        if rsi is not None:
-            if 40 <= rsi <= 70:
-                tech_score += 5
-            elif rsi < 30:
-                tech_score += 3  # 超卖反弹潜力
-        if tech.get("macd", {}).get("signal") == "golden":
-            tech_score += 3
-        result["dimensions"]["technical"] = {"score": min(tech_score, 40), "trend": tech.get("trend", {}).get("status"),
-                                             "rsi": rsi, "macd": tech.get("macd", {}).get("signal")}
     except Exception:
-        result["dimensions"]["technical"] = {"score": tech_score, "trend": "N/A"}
+        tech = {}
 
-    # 资金面 0-30
-    fund_score = 15
+    # 资金流
+    fund_flow = None
     try:
         from data_sources.em_fundflow import get_fund_flow_120d
-        ff = get_fund_flow_120d(code, days=20)
-        flow = ff.get("flow") or []
-        if flow:
-            recent5 = sum(f.get("main_net") or 0 for f in flow[:5])
-            if recent5 > 0:
-                fund_score += 10
-            elif recent5 < 0:
-                fund_score -= 5
-            ratio = flow[0].get("ratioamount") or 0
-            if ratio > 0.1:
-                fund_score += 5
-        result["dimensions"]["fund_flow"] = {"score": max(0, min(fund_score, 30)),
-                                              "total_main_net_yi": ff.get("total_main_net_yi")}
+        fund_flow = get_fund_flow_120d(code, days=20)
     except Exception:
-        result["dimensions"]["fund_flow"] = {"score": fund_score}
+        fund_flow = None
 
-    # 估值/价格位置 0-30
-    val_score = 15
-    try:
-        quote_pct = quote.get("change_pct") or 0
-        if quote_pct > 0:
-            val_score += 5
-        if quote_pct > 3:
-            val_score += 5
-        result["dimensions"]["market"] = {"score": val_score, "change_pct": quote_pct}
-    except Exception:
-        result["dimensions"]["market"] = {"score": val_score}
-
-    total = sum(d["score"] for d in result["dimensions"].values())
-    result["score"] = min(total, 100)
-    result["suggestion"] = (
-        "强势，可关注" if result["score"] >= 70 else
-        "中性，观望" if result["score"] >= 45 else "弱势，谨慎"
-    )
-    return result
+    # 使用因子框架计算评分
+    return _compute_stock_score(tech=tech, quote=quote, fund_flow=fund_flow)
 
 
 # ─── stock_signals: 多因子信号聚合 ───
@@ -452,7 +430,7 @@ def tdx_test():
         q = tencent.get_realtime_quote("600519")
         if q:
             result["tests"].append({"name": "tencent_fallback(600519)", "ok": True,
-                                    "price": q.get("price"), "name": q.get("name")})
+                                    "price": q.get("price"), "stock_name": q.get("name")})
             result["ok"] = result["ok"] or True
     except Exception as e:
         result["tests"].append({"name": "tencent_fallback", "ok": False, "error": str(e)[:150]})

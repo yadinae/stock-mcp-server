@@ -53,10 +53,33 @@ TOOL_GROUPS: dict[str, dict] = {
         ],
     },
     "组合持仓": {
-        "description": "组合风险诊断、相关性矩阵、调仓建议、信号",
+        "description": "组合风险诊断、相关性矩阵、调仓建议、信号、并发巡检",
         "tools": [
             "portfolio_risk_diagnosis", "portfolio_correlation",
             "portfolio_full_report", "portfolio_rebalance", "portfolio_signal",
+            "portfolio_inspect",
+        ],
+    },
+    "Narrative叙事": {
+        "description": "概念归一化、叙事排名、跨股票叙事分析（纯代码，零LLM成本）",
+        "tools": [
+            "narrative_normalize", "narrative_rank",
+            "boards_with_narratives", "cross_stock_narratives",
+        ],
+    },
+    "情绪存储": {
+        "description": "每日情绪快照采集、历史查询、跨日趋势对比",
+        "tools": [
+            "sentiment_collect", "sentiment_save", "sentiment_query",
+            "sentiment_trend", "sentiment_list",
+        ],
+    },
+    "知识库": {
+        "description": "研报/策略文档本地缓存、关键词检索、LLM上下文注入",
+        "tools": [
+            "methodology_add", "methodology_batch_add", "methodology_search",
+            "methodology_context", "methodology_list", "methodology_stats",
+            "methodology_cleanup",
         ],
     },
     "交易日志": {
@@ -131,6 +154,20 @@ TOOL_GROUPS: dict[str, dict] = {
     "复合决策": {
         "description": "组合调仓信号、盘中异动预警（组合多工具输出做决策判断）",
         "tools": ["portfolio_rebalance_signal", "intraday_alert"],
+    },
+    "情绪存储": {
+        "description": "每日市场情绪快照、趋势分析、异常检测（SQLite持久化）",
+        "tools": [
+            "sentiment_store", "sentiment_get", "sentiment_trend",
+            "sentiment_anomaly", "sentiment_stock_store", "sentiment_stock_get",
+        ],
+    },
+    "策略知识库": {
+        "description": "本地策略/研报知识缓存，支持检索、注入、管理",
+        "tools": [
+            "methodology_add", "methodology_search", "methodology_get",
+            "methodology_context", "methodology_list", "methodology_remove",
+        ],
     },
     "可观测性": {
         "description": "数据源实时探测、工具调用统计、数据清理",

@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wyckoff 漏斗面板</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 { font-size: 24px; margin-bottom: 20px; color: #38bdf8; }
+        h2 { font-size: 18px; margin: 20px 0 10px; color: #94a3b8; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 20px; }
+        .card { background: #1e293b; border-radius: 12px; padding: 16px; border: 1px solid #334155; }
+        .card-title { font-size: 14px; color: #64748b; margin-bottom: 8px; }
+        .card-value { font-size: 28px; font-weight: bold; color: #f8fafc; }
+        .card-sub { font-size: 12px; color: #64748b; margin-top: 4px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid #334155; font-size: 13px; }
+        th { color: #94a3b8; font-weight: 500; }
+        td { color: #e2e8f0; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; }
+        .badge-trend { background: #0ea5e920; color: #38bdf8; }
+        .badge-accum { background: #22c55e20; color: #4ade80; }
+        .badge-reversal { background: #f59e0b20; color: #fbbf24; }
+        .badge-breakout { background: #ef444420; color: #f87171; }
+        .progress-bar { height: 8px; background: #334155; border-radius: 4px; overflow: hidden; margin-top: 8px; }
+        .progress-fill { height: 100%; border-radius: 4px; transition: width 0.3s; }
+        .footer { text-align: center; color: #475569; font-size: 12px; margin-top: 30px; padding: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>&#x1F3AF; Wyckoff 漏斗面板</h1>
+
+        <div class="grid">
+            <div class="card">
+                <div class="card-title">输入股票数</div>
+                <div class="card-value">48</div>
+                <div class="card-sub">全市场 A 股</div>
+            </div>
+            <div class="card">
+                <div class="card-title">最终候选</div>
+                <div class="card-value">6</div>
+                <div class="card-sub">通过全部筛选</div>
+            </div>
+            <div class="card">
+                <div class="card-title">通过率</div>
+                <div class="card-value">12.5%</div>
+                <div class="card-sub">漏斗效率</div>
+            </div>
+            <div class="card">
+                <div class="card-title">活跃信号</div>
+                <div class="card-value">63</div>
+                <div class="card-sub">状态机追踪中</div>
+            </div>
+        </div>
+
+        <h2>&#x1F4CA; 阶段通过率</h2>
+        <div class="card">
+            
+        <div style="margin-bottom: 12px;">
+            <div style="display: flex; justify-content: space-between; font-size: 13px;">
+                <span>basic_filter</span>
+                <span>48 &rarr; 48 (100%)</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: 100.0%; background: #38bdf8;"></div>
+            </div>
+        </div>
+        <div style="margin-bottom: 12px;">
+            <div style="display: flex; justify-content: space-between; font-size: 13px;">
+                <span>technical_multi_channel</span>
+                <span>48 &rarr; 26 (54%)</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: 54.166666666666664%; background: #38bdf8;"></div>
+            </div>
+        </div>
+        <div style="margin-bottom: 12px;">
+            <div style="display: flex; justify-content: space-between; font-size: 13px;">
+                <span>ranking</span>
+                <span>26 &rarr; 6 (23%)</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: 23.076923076923077%; background: #fbbf24;"></div>
+            </div>
+        </div>
+        </div>
+
+        <h2>&#x1F3C6; 候选列表</h2>
+        <div class="card">
+            <table>
+                <thead>
+                    <tr>
+                        <th>代码</th>
+                        <th>名称</th>
+                        <th>价格</th>
+                        <th>通道</th>
+                        <th>评分</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+        <tr>
+            <td>000977</td>
+            <td>000977</td>
+            <td>372.21999474</td>
+            <td><span class="badge badge-tren">trend</span> <span class="badge badge-accu">accumulation</span> </td>
+            <td>44.0</td>
+        </tr>
+        <tr>
+            <td>000725</td>
+            <td>000725</td>
+            <td>22.13504146</td>
+            <td><span class="badge badge-tren">trend</span> </td>
+            <td>37.0</td>
+        </tr>
+        <tr>
+            <td>300033</td>
+            <td>300033</td>
+            <td>2863.38529392</td>
+            <td><span class="badge badge-accu">accumulation</span> </td>
+            <td>37.0</td>
+        </tr>
+        <tr>
+            <td>300059</td>
+            <td>300059</td>
+            <td>1549.85573856</td>
+            <td><span class="badge badge-accu">accumulation</span> </td>
+            <td>37.0</td>
+        </tr>
+        <tr>
+            <td>600030</td>
+            <td>600030</td>
+            <td>135.58115415</td>
+            <td><span class="badge badge-accu">accumulation</span> </td>
+            <td>37.0</td>
+        </tr>
+        <tr>
+            <td>600036</td>
+            <td>600036</td>
+            <td>226.819112</td>
+            <td><span class="badge badge-accu">accumulation</span> </td>
+            <td>37.0</td>
+        </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h2>&#x1F4E1; 信号状态</h2>
+        <div class="card">
+            <table>
+                <thead>
+                    <tr>
+                        <th>信号类型</th>
+                        <th>状态</th>
+                        <th>样本数</th>
+                        <th>胜率</th>
+                        <th>平均收益</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+        <tr>
+            <td>accumulation</td>
+            <td><span class="badge badge-accum">shadow</span></td>
+            <td>3</td>
+            <td>66.7%</td>
+            <td>+1.91%</td>
+        </tr>
+        <tr>
+            <td>trend</td>
+            <td><span class="badge badge-accum">shadow</span></td>
+            <td>2</td>
+            <td>50.0%</td>
+            <td>+0.43%</td>
+        </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="footer">
+            Generated at 2026-08-29 08:14:15 | Wyckoff Funnel Dashboard
+        </div>
+    </div>
+</body>
+</html>

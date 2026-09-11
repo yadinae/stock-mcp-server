@@ -85,17 +85,22 @@ def agnes_llm_call(
             resp.raise_for_status()
             data = resp.json()
 
-            content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-            reasoning = data.get("choices", [{}])[0].get("message", {}).get("reasoning_content", "")
+            content = data.get("choices", [{}])[0].get("message", {}).get("content", "") or ""
+            reasoning = data.get("choices", [{}])[0].get("message", {}).get("reasoning_content", "") or ""
 
-            # Agnes 可能把思考过程放在 reasoning_content，实际输出在 content
-            # 如果 content 为空，尝试从 reasoning 提取 JSON
-            if not content.strip() and reasoning:
-                # 尝试从 reasoning 中提取 JSON
+            # 推理模型（deepseek-flash/mimo 等）可能把实际输出放在 reasoning_content
+            # content 为空时，直接用 reasoning 作为结果（不限于 JSON 提取）
+            if not content.strip() and reasoning.strip():
+                # 尝试从 reasoning 中提取 JSON（如果有）
                 if "{" in reasoning:
-                    start = reasoning.index("{")
-                    end = reasoning.rindex("}") + 1
-                    content = reasoning[start:end]
+                    try:
+                        start = reasoning.index("{")
+                        end = reasoning.rindex("}") + 1
+                        content = reasoning[start:end]
+                    except ValueError:
+                        content = reasoning
+                else:
+                    content = reasoning
 
             return content.strip()
 

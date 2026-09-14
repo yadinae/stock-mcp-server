@@ -615,4 +615,33 @@ TOOL_META: dict[str, dict] = {
         "keywords": ["清理", "过期", "数据"],
         "data_source": "local_sqlite", "market": [],
     },
+
+    # ── 筹码分布 (chip_distribution) ──
+    "get_chip_distribution": {
+        "group": "筹码分布", "complexity": "medium", "latency": "slow",
+        "keywords": ["筹码", "CYQ", "获利盘", "套牢盘", "成本", "集中度", "换手率"],
+        "data_source": "push2his", "market": ["A"],
+    },
+
+    # ── 宏观经济 (macro) ──
+    "get_macro_pmi": {
+        "group": "宏观经济", "complexity": "low", "latency": "fast",
+        "keywords": ["PMI", "制造业", "非制造业", "采购经理", "经济景气"],
+        "data_source": "eastmoney_datacenter", "market": ["macro"],
+    },
+    "get_macro_cpi": {
+        "group": "宏观经济", "complexity": "low", "latency": "fast",
+        "keywords": ["CPI", "通胀", "通缩", "物价", "消费价格"],
+        "data_source": "eastmoney_datacenter", "market": ["macro"],
+    },
+    "get_macro_m2": {
+        "group": "宏观经济", "complexity": "low", "latency": "fast",
+        "keywords": ["M2", "M1", "货币供应", "剪刀差", "流动性", "社融"],
+        "data_source": "eastmoney_datacenter", "market": ["macro"],
+    },
+    "get_macro_summary": {
+        "group": "宏观经济", "complexity": "low", "latency": "medium",
+        "keywords": ["宏观", "全景", "PMI", "CPI", "M2", "经济环境", "综合判断"],
+        "data_source": "eastmoney_datacenter", "market": ["macro"],
+    },
 }

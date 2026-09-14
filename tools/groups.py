@@ -173,4 +173,12 @@ TOOL_GROUPS: dict[str, dict] = {
         "description": "数据源实时探测、工具调用统计、数据清理",
         "tools": ["probe_data_sources", "get_tool_stats", "cleanup_metrics"],
     },
+    "筹码分布": {
+        "description": "个股筹码分布计算（换手率驱动模型）、获利/套牢盘分析",
+        "tools": ["get_chip_distribution"],
+    },
+    "宏观经济": {
+        "description": "PMI/CPI/M2宏观指标、综合宏观环境判断",
+        "tools": ["get_macro_pmi", "get_macro_cpi", "get_macro_m2", "get_macro_summary"],
+    },
 }

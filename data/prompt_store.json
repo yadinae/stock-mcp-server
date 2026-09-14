@@ -127,9 +127,63 @@
               "stock": "601949",
               "timestamp": "2026-09-10T18:15:30",
               "meta": {}
+            },
+            {
+              "score": 75.0,
+              "stock": "电子生产设备",
+              "timestamp": "2026-09-11T14:32:04",
+              "meta": {}
+            },
+            {
+              "score": 70.0,
+              "stock": "000001",
+              "timestamp": "2026-09-11T17:31:33",
+              "meta": {}
+            },
+            {
+              "score": 75.0,
+              "stock": "002201",
+              "timestamp": "2026-09-11T18:02:38",
+              "meta": {}
+            },
+            {
+              "score": 75.0,
+              "stock": "300913",
+              "timestamp": "2026-09-11T18:04:07",
+              "meta": {}
+            },
+            {
+              "score": 75.0,
+              "stock": "600255",
+              "timestamp": "2026-09-11T20:06:28",
+              "meta": {}
+            },
+            {
+              "score": 50.0,
+              "stock": "002161",
+              "timestamp": "2026-09-11T20:08:06",
+              "meta": {}
+            },
+            {
+              "score": 80.0,
+              "stock": "002790",
+              "timestamp": "2026-09-11T20:11:03",
+              "meta": {}
+            },
+            {
+              "score": 50.0,
+              "stock": "000993",
+              "timestamp": "2026-09-11T20:12:27",
+              "meta": {}
+            },
+            {
+              "score": 75.0,
+              "stock": "600519",
+              "timestamp": "2026-09-11T20:15:57",
+              "meta": {}
             }
           ],
-          "avg_score": 75.3
+          "avg_score": 73.5
         }
       }
     },
@@ -254,6 +308,60 @@
               "stock": "601949",
               "timestamp": "2026-09-10T18:15:30",
               "meta": {}
+            },
+            {
+              "score": 75.0,
+              "stock": "电子生产设备",
+              "timestamp": "2026-09-11T14:32:04",
+              "meta": {}
+            },
+            {
+              "score": 85.0,
+              "stock": "000001",
+              "timestamp": "2026-09-11T17:31:33",
+              "meta": {}
+            },
+            {
+              "score": 75.0,
+              "stock": "002201",
+              "timestamp": "2026-09-11T18:02:38",
+              "meta": {}
+            },
+            {
+              "score": 70.0,
+              "stock": "300913",
+              "timestamp": "2026-09-11T18:04:07",
+              "meta": {}
+            },
+            {
+              "score": 75.0,
+              "stock": "600255",
+              "timestamp": "2026-09-11T20:06:28",
+              "meta": {}
+            },
+            {
+              "score": 50.0,
+              "stock": "002161",
+              "timestamp": "2026-09-11T20:08:06",
+              "meta": {}
+            },
+            {
+              "score": 90.0,
+              "stock": "002790",
+              "timestamp": "2026-09-11T20:11:03",
+              "meta": {}
+            },
+            {
+              "score": 75.0,
+              "stock": "000993",
+              "timestamp": "2026-09-11T20:12:27",
+              "meta": {}
+            },
+            {
+              "score": 75.0,
+              "stock": "600519",
+              "timestamp": "2026-09-11T20:15:57",
+              "meta": {}
             }
           ],
           "avg_score": 74.4
@@ -375,9 +483,63 @@
               "stock": "601949",
               "timestamp": "2026-09-10T18:15:30",
               "meta": {}
+            },
+            {
+              "score": 80.0,
+              "stock": "电子生产设备",
+              "timestamp": "2026-09-11T14:32:04",
+              "meta": {}
+            },
+            {
+              "score": 80.0,
+              "stock": "000001",
+              "timestamp": "2026-09-11T17:31:33",
+              "meta": {}
+            },
+            {
+              "score": 60.0,
+              "stock": "002201",
+              "timestamp": "2026-09-11T18:02:38",
+              "meta": {}
+            },
+            {
+              "score": 75.0,
+              "stock": "300913",
+              "timestamp": "2026-09-11T18:04:07",
+              "meta": {}
+            },
+            {
+              "score": 75.0,
+              "stock": "600255",
+              "timestamp": "2026-09-11T20:06:28",
+              "meta": {}
+            },
+            {
+              "score": 50.0,
+              "stock": "002161",
+              "timestamp": "2026-09-11T20:08:06",
+              "meta": {}
+            },
+            {
+              "score": 75.0,
+              "stock": "002790",
+              "timestamp": "2026-09-11T20:11:03",
+              "meta": {}
+            },
+            {
+              "score": 75.0,
+              "stock": "000993",
+              "timestamp": "2026-09-11T20:12:27",
+              "meta": {}
+            },
+            {
+              "score": 75.0,
+              "stock": "600519",
+              "timestamp": "2026-09-11T20:15:57",
+              "meta": {}
             }
           ],
-          "avg_score": 73.1
+          "avg_score": 72.6
         }
       }
     },
@@ -496,9 +658,63 @@
               "stock": "601949",
               "timestamp": "2026-09-10T18:15:30",
               "meta": {}
+            },
+            {
+              "score": 80.0,
+              "stock": "电子生产设备",
+              "timestamp": "2026-09-11T14:32:04",
+              "meta": {}
+            },
+            {
+              "score": 80.0,
+              "stock": "000001",
+              "timestamp": "2026-09-11T17:31:33",
+              "meta": {}
+            },
+            {
+              "score": 60.0,
+              "stock": "002201",
+              "timestamp": "2026-09-11T18:02:38",
+              "meta": {}
+            },
+            {
+              "score": 75.0,
+              "stock": "300913",
+              "timestamp": "2026-09-11T18:04:07",
+              "meta": {}
+            },
+            {
+              "score": 75.0,
+              "stock": "600255",
+              "timestamp": "2026-09-11T20:06:28",
+              "meta": {}
+            },
+            {
+              "score": 50.0,
+              "stock": "002161",
+              "timestamp": "2026-09-11T20:08:06",
+              "meta": {}
+            },
+            {
+              "score": 75.0,
+              "stock": "002790",
+              "timestamp": "2026-09-11T20:11:03",
+              "meta": {}
+            },
+            {
+              "score": 75.0,
+              "stock": "000993",
+              "timestamp": "2026-09-11T20:12:27",
+              "meta": {}
+            },
+            {
+              "score": 75.0,
+              "stock": "600519",
+              "timestamp": "2026-09-11T20:15:57",
+              "meta": {}
             }
           ],
-          "avg_score": 73.1
+          "avg_score": 72.6
         }
       }
     }
@@ -822,6 +1038,168 @@
         },
         "moderator": {
           "score": 80.0
+        },
+        "reflection": {
+          "score": 50
+        }
+      }
+    },
+    {
+      "timestamp": "2026-09-11T14:32:04",
+      "stock": "电子生产设备",
+      "scores": {
+        "bull": {
+          "score": 75.0
+        },
+        "bear": {
+          "score": 75.0
+        },
+        "moderator": {
+          "score": 80.0
+        },
+        "reflection": {
+          "score": 50
+        }
+      }
+    },
+    {
+      "timestamp": "2026-09-11T17:31:33",
+      "stock": "000001",
+      "scores": {
+        "bull": {
+          "score": 70.0
+        },
+        "bear": {
+          "score": 85.0
+        },
+        "moderator": {
+          "score": 80.0
+        },
+        "reflection": {
+          "score": 50
+        }
+      }
+    },
+    {
+      "timestamp": "2026-09-11T18:02:38",
+      "stock": "002201",
+      "scores": {
+        "bull": {
+          "score": 75.0
+        },
+        "bear": {
+          "score": 75.0
+        },
+        "moderator": {
+          "score": 60.0
+        },
+        "reflection": {
+          "score": 50
+        }
+      }
+    },
+    {
+      "timestamp": "2026-09-11T18:04:07",
+      "stock": "300913",
+      "scores": {
+        "bull": {
+          "score": 75.0
+        },
+        "bear": {
+          "score": 70.0
+        },
+        "moderator": {
+          "score": 75.0
+        },
+        "reflection": {
+          "score": 50
+        }
+      }
+    },
+    {
+      "timestamp": "2026-09-11T20:06:28",
+      "stock": "600255",
+      "scores": {
+        "bull": {
+          "score": 75.0
+        },
+        "bear": {
+          "score": 75.0
+        },
+        "moderator": {
+          "score": 75.0
+        },
+        "reflection": {
+          "score": 50
+        }
+      }
+    },
+    {
+      "timestamp": "2026-09-11T20:08:06",
+      "stock": "002161",
+      "scores": {
+        "bull": {
+          "score": 50.0
+        },
+        "bear": {
+          "score": 50.0
+        },
+        "moderator": {
+          "score": 50.0
+        },
+        "reflection": {
+          "score": 50
+        }
+      }
+    },
+    {
+      "timestamp": "2026-09-11T20:11:03",
+      "stock": "002790",
+      "scores": {
+        "bull": {
+          "score": 80.0
+        },
+        "bear": {
+          "score": 90.0
+        },
+        "moderator": {
+          "score": 75.0
+        },
+        "reflection": {
+          "score": 50
+        }
+      }
+    },
+    {
+      "timestamp": "2026-09-11T20:12:27",
+      "stock": "000993",
+      "scores": {
+        "bull": {
+          "score": 50.0
+        },
+        "bear": {
+          "score": 75.0
+        },
+        "moderator": {
+          "score": 75.0
+        },
+        "reflection": {
+          "score": 50
+        }
+      }
+    },
+    {
+      "timestamp": "2026-09-11T20:15:57",
+      "stock": "600519",
+      "scores": {
+        "bull": {
+          "score": 75.0
+        },
+        "bear": {
+          "score": 75.0
+        },
+        "moderator": {
+          "score": 75.0
         },
         "reflection": {
           "score": 50

@@ -181,9 +181,177 @@
               "stock": "600519",
               "timestamp": "2026-09-11T20:15:57",
               "meta": {}
+            },
+            {
+              "score": 85.0,
+              "stock": "其他",
+              "timestamp": "2026-09-14T14:31:25",
+              "meta": {}
+            },
+            {
+              "score": 50.0,
+              "stock": "300369",
+              "timestamp": "2026-09-14T18:01:45",
+              "meta": {}
+            },
+            {
+              "score": 50.0,
+              "stock": "600929",
+              "timestamp": "2026-09-14T20:28:08",
+              "meta": {}
+            },
+            {
+              "score": 90.0,
+              "stock": "688525",
+              "timestamp": "2026-09-14T21:15:03",
+              "meta": {}
+            },
+            {
+              "score": 90.0,
+              "stock": "508020",
+              "timestamp": "2026-09-14T21:33:37",
+              "meta": {}
+            },
+            {
+              "score": 20.0,
+              "stock": "180901",
+              "timestamp": "2026-09-14T21:51:38",
+              "meta": {}
+            },
+            {
+              "score": 50.0,
+              "stock": "508020",
+              "timestamp": "2026-09-14T22:12:01",
+              "meta": {}
+            },
+            {
+              "score": 20.0,
+              "stock": "180901",
+              "timestamp": "2026-09-14T22:36:52",
+              "meta": {}
+            },
+            {
+              "score": 85.0,
+              "stock": "300905",
+              "timestamp": "2026-09-15T18:02:35",
+              "meta": {}
+            },
+            {
+              "score": 80.0,
+              "stock": "002531",
+              "timestamp": "2026-09-15T18:04:31",
+              "meta": {}
+            },
+            {
+              "score": 80.0,
+              "stock": "半导体",
+              "timestamp": "2026-09-16T14:31:58",
+              "meta": {}
+            },
+            {
+              "score": 90.0,
+              "stock": "003006",
+              "timestamp": "2026-09-16T18:01:44",
+              "meta": {}
+            },
+            {
+              "score": 90.0,
+              "stock": "600088",
+              "timestamp": "2026-09-16T18:03:34",
+              "meta": {}
+            },
+            {
+              "score": 95.0,
+              "stock": "002487",
+              "timestamp": "2026-09-17T18:02:48",
+              "meta": {}
+            },
+            {
+              "score": 85.0,
+              "stock": "603042",
+              "timestamp": "2026-09-17T18:05:26",
+              "meta": {}
+            },
+            {
+              "score": 90.0,
+              "stock": "300939",
+              "timestamp": "2026-09-17T18:33:45",
+              "meta": {}
+            },
+            {
+              "score": 90.0,
+              "stock": "301047",
+              "timestamp": "2026-09-17T18:36:15",
+              "meta": {}
+            },
+            {
+              "score": 85.0,
+              "stock": "301047",
+              "timestamp": "2026-09-17T19:00:10",
+              "meta": {}
+            },
+            {
+              "score": 95.0,
+              "stock": "688837",
+              "timestamp": "2026-09-17T19:06:14",
+              "meta": {}
+            },
+            {
+              "score": 90.0,
+              "stock": "181001",
+              "timestamp": "2026-09-17T19:08:40",
+              "meta": {}
+            },
+            {
+              "score": 95.0,
+              "stock": "181001",
+              "timestamp": "2026-09-17T19:13:43",
+              "meta": {}
+            },
+            {
+              "score": 95.0,
+              "stock": "181001",
+              "timestamp": "2026-09-17T19:18:47",
+              "meta": {}
+            },
+            {
+              "score": 85.0,
+              "stock": "181001",
+              "timestamp": "2026-09-17T19:22:30",
+              "meta": {}
+            },
+            {
+              "score": 80.0,
+              "stock": "基础化工",
+              "timestamp": "2026-09-18T14:32:26",
+              "meta": {}
+            },
+            {
+              "score": 90.0,
+              "stock": "000001",
+              "timestamp": "2026-09-18T17:32:33",
+              "meta": {}
+            },
+            {
+              "score": 90.0,
+              "stock": "002631",
+              "timestamp": "2026-09-18T18:02:49",
+              "meta": {}
+            },
+            {
+              "score": 90.0,
+              "stock": "603268",
+              "timestamp": "2026-09-18T18:54:32",
+              "meta": {}
+            },
+            {
+              "score": 80.0,
+              "stock": "600163",
+              "timestamp": "2026-09-18T19:22:12",
+              "meta": {}
             }
           ],
-          "avg_score": 73.5
+          "avg_score": 76.3
         }
       }
     },
@@ -362,9 +530,177 @@
               "stock": "600519",
               "timestamp": "2026-09-11T20:15:57",
               "meta": {}
+            },
+            {
+              "score": 70.0,
+              "stock": "其他",
+              "timestamp": "2026-09-14T14:31:25",
+              "meta": {}
+            },
+            {
+              "score": 50.0,
+              "stock": "300369",
+              "timestamp": "2026-09-14T18:01:45",
+              "meta": {}
+            },
+            {
+              "score": 50.0,
+              "stock": "600929",
+              "timestamp": "2026-09-14T20:28:08",
+              "meta": {}
+            },
+            {
+              "score": 20.0,
+              "stock": "688525",
+              "timestamp": "2026-09-14T21:15:03",
+              "meta": {}
+            },
+            {
+              "score": 95.0,
+              "stock": "508020",
+              "timestamp": "2026-09-14T21:33:37",
+              "meta": {}
+            },
+            {
+              "score": 20.0,
+              "stock": "180901",
+              "timestamp": "2026-09-14T21:51:38",
+              "meta": {}
+            },
+            {
+              "score": 20.0,
+              "stock": "508020",
+              "timestamp": "2026-09-14T22:12:01",
+              "meta": {}
+            },
+            {
+              "score": 50.0,
+              "stock": "180901",
+              "timestamp": "2026-09-14T22:36:52",
+              "meta": {}
+            },
+            {
+              "score": 75.0,
+              "stock": "300905",
+              "timestamp": "2026-09-15T18:02:35",
+              "meta": {}
+            },
+            {
+              "score": 90.0,
+              "stock": "002531",
+              "timestamp": "2026-09-15T18:04:31",
+              "meta": {}
+            },
+            {
+              "score": 60.0,
+              "stock": "半导体",
+              "timestamp": "2026-09-16T14:31:58",
+              "meta": {}
+            },
+            {
+              "score": 95.0,
+              "stock": "003006",
+              "timestamp": "2026-09-16T18:01:44",
+              "meta": {}
+            },
+            {
+              "score": 90.0,
+              "stock": "600088",
+              "timestamp": "2026-09-16T18:03:34",
+              "meta": {}
+            },
+            {
+              "score": 95.0,
+              "stock": "002487",
+              "timestamp": "2026-09-17T18:02:48",
+              "meta": {}
+            },
+            {
+              "score": 85.0,
+              "stock": "603042",
+              "timestamp": "2026-09-17T18:05:26",
+              "meta": {}
+            },
+            {
+              "score": 55.0,
+              "stock": "300939",
+              "timestamp": "2026-09-17T18:33:45",
+              "meta": {}
+            },
+            {
+              "score": 90.0,
+              "stock": "301047",
+              "timestamp": "2026-09-17T18:36:15",
+              "meta": {}
+            },
+            {
+              "score": 95.0,
+              "stock": "301047",
+              "timestamp": "2026-09-17T19:00:10",
+              "meta": {}
+            },
+            {
+              "score": 95.0,
+              "stock": "688837",
+              "timestamp": "2026-09-17T19:06:14",
+              "meta": {}
+            },
+            {
+              "score": 95.0,
+              "stock": "181001",
+              "timestamp": "2026-09-17T19:08:40",
+              "meta": {}
+            },
+            {
+              "score": 90.0,
+              "stock": "181001",
+              "timestamp": "2026-09-17T19:13:43",
+              "meta": {}
+            },
+            {
+              "score": 90.0,
+              "stock": "181001",
+              "timestamp": "2026-09-17T19:18:47",
+              "meta": {}
+            },
+            {
+              "score": 95.0,
+              "stock": "181001",
+              "timestamp": "2026-09-17T19:22:30",
+              "meta": {}
+            },
+            {
+              "score": 95.0,
+              "stock": "基础化工",
+              "timestamp": "2026-09-18T14:32:26",
+              "meta": {}
+            },
+            {
+              "score": 90.0,
+              "stock": "000001",
+              "timestamp": "2026-09-18T17:32:33",
+              "meta": {}
+            },
+            {
+              "score": 65.0,
+              "stock": "002631",
+              "timestamp": "2026-09-18T18:02:49",
+              "meta": {}
+            },
+            {
+              "score": 90.0,
+              "stock": "603268",
+              "timestamp": "2026-09-18T18:54:32",
+              "meta": {}
+            },
+            {
+              "score": 85.0,
+              "stock": "600163",
+              "timestamp": "2026-09-18T19:22:12",
+              "meta": {}
             }
           ],
-          "avg_score": 74.4
+          "avg_score": 74.6
         }
       }
     },
@@ -537,9 +873,177 @@
               "stock": "600519",
               "timestamp": "2026-09-11T20:15:57",
               "meta": {}
+            },
+            {
+              "score": 75.0,
+              "stock": "其他",
+              "timestamp": "2026-09-14T14:31:25",
+              "meta": {}
+            },
+            {
+              "score": 50.0,
+              "stock": "300369",
+              "timestamp": "2026-09-14T18:01:45",
+              "meta": {}
+            },
+            {
+              "score": 50.0,
+              "stock": "600929",
+              "timestamp": "2026-09-14T20:28:08",
+              "meta": {}
+            },
+            {
+              "score": 20.0,
+              "stock": "688525",
+              "timestamp": "2026-09-14T21:15:03",
+              "meta": {}
+            },
+            {
+              "score": 80.0,
+              "stock": "508020",
+              "timestamp": "2026-09-14T21:33:37",
+              "meta": {}
+            },
+            {
+              "score": 75.0,
+              "stock": "180901",
+              "timestamp": "2026-09-14T21:51:38",
+              "meta": {}
+            },
+            {
+              "score": 20.0,
+              "stock": "508020",
+              "timestamp": "2026-09-14T22:12:01",
+              "meta": {}
+            },
+            {
+              "score": 20.0,
+              "stock": "180901",
+              "timestamp": "2026-09-14T22:36:52",
+              "meta": {}
+            },
+            {
+              "score": 75.0,
+              "stock": "300905",
+              "timestamp": "2026-09-15T18:02:35",
+              "meta": {}
+            },
+            {
+              "score": 80.0,
+              "stock": "002531",
+              "timestamp": "2026-09-15T18:04:31",
+              "meta": {}
+            },
+            {
+              "score": 80.0,
+              "stock": "半导体",
+              "timestamp": "2026-09-16T14:31:58",
+              "meta": {}
+            },
+            {
+              "score": 75.0,
+              "stock": "003006",
+              "timestamp": "2026-09-16T18:01:44",
+              "meta": {}
+            },
+            {
+              "score": 75.0,
+              "stock": "600088",
+              "timestamp": "2026-09-16T18:03:34",
+              "meta": {}
+            },
+            {
+              "score": 75.0,
+              "stock": "002487",
+              "timestamp": "2026-09-17T18:02:48",
+              "meta": {}
+            },
+            {
+              "score": 75.0,
+              "stock": "603042",
+              "timestamp": "2026-09-17T18:05:26",
+              "meta": {}
+            },
+            {
+              "score": 75.0,
+              "stock": "300939",
+              "timestamp": "2026-09-17T18:33:45",
+              "meta": {}
+            },
+            {
+              "score": 75.0,
+              "stock": "301047",
+              "timestamp": "2026-09-17T18:36:15",
+              "meta": {}
+            },
+            {
+              "score": 85.0,
+              "stock": "301047",
+              "timestamp": "2026-09-17T19:00:10",
+              "meta": {}
+            },
+            {
+              "score": 75.0,
+              "stock": "688837",
+              "timestamp": "2026-09-17T19:06:14",
+              "meta": {}
+            },
+            {
+              "score": 75.0,
+              "stock": "181001",
+              "timestamp": "2026-09-17T19:08:40",
+              "meta": {}
+            },
+            {
+              "score": 80.0,
+              "stock": "181001",
+              "timestamp": "2026-09-17T19:13:43",
+              "meta": {}
+            },
+            {
+              "score": 80.0,
+              "stock": "181001",
+              "timestamp": "2026-09-17T19:18:47",
+              "meta": {}
+            },
+            {
+              "score": 80.0,
+              "stock": "181001",
+              "timestamp": "2026-09-17T19:22:30",
+              "meta": {}
+            },
+            {
+              "score": 70.0,
+              "stock": "基础化工",
+              "timestamp": "2026-09-18T14:32:26",
+              "meta": {}
+            },
+            {
+              "score": 75.0,
+              "stock": "000001",
+              "timestamp": "2026-09-18T17:32:33",
+              "meta": {}
+            },
+            {
+              "score": 80.0,
+              "stock": "002631",
+              "timestamp": "2026-09-18T18:02:49",
+              "meta": {}
+            },
+            {
+              "score": 75.0,
+              "stock": "603268",
+              "timestamp": "2026-09-18T18:54:32",
+              "meta": {}
+            },
+            {
+              "score": 85.0,
+              "stock": "600163",
+              "timestamp": "2026-09-18T19:22:12",
+              "meta": {}
             }
           ],
-          "avg_score": 72.6
+          "avg_score": 70.8
         }
       }
     },
@@ -712,9 +1216,177 @@
               "stock": "600519",
               "timestamp": "2026-09-11T20:15:57",
               "meta": {}
+            },
+            {
+              "score": 75.0,
+              "stock": "其他",
+              "timestamp": "2026-09-14T14:31:25",
+              "meta": {}
+            },
+            {
+              "score": 50.0,
+              "stock": "300369",
+              "timestamp": "2026-09-14T18:01:45",
+              "meta": {}
+            },
+            {
+              "score": 50.0,
+              "stock": "600929",
+              "timestamp": "2026-09-14T20:28:08",
+              "meta": {}
+            },
+            {
+              "score": 20.0,
+              "stock": "688525",
+              "timestamp": "2026-09-14T21:15:03",
+              "meta": {}
+            },
+            {
+              "score": 80.0,
+              "stock": "508020",
+              "timestamp": "2026-09-14T21:33:37",
+              "meta": {}
+            },
+            {
+              "score": 75.0,
+              "stock": "180901",
+              "timestamp": "2026-09-14T21:51:38",
+              "meta": {}
+            },
+            {
+              "score": 20.0,
+              "stock": "508020",
+              "timestamp": "2026-09-14T22:12:01",
+              "meta": {}
+            },
+            {
+              "score": 20.0,
+              "stock": "180901",
+              "timestamp": "2026-09-14T22:36:52",
+              "meta": {}
+            },
+            {
+              "score": 75.0,
+              "stock": "300905",
+              "timestamp": "2026-09-15T18:02:35",
+              "meta": {}
+            },
+            {
+              "score": 80.0,
+              "stock": "002531",
+              "timestamp": "2026-09-15T18:04:31",
+              "meta": {}
+            },
+            {
+              "score": 80.0,
+              "stock": "半导体",
+              "timestamp": "2026-09-16T14:31:58",
+              "meta": {}
+            },
+            {
+              "score": 75.0,
+              "stock": "003006",
+              "timestamp": "2026-09-16T18:01:44",
+              "meta": {}
+            },
+            {
+              "score": 75.0,
+              "stock": "600088",
+              "timestamp": "2026-09-16T18:03:34",
+              "meta": {}
+            },
+            {
+              "score": 75.0,
+              "stock": "002487",
+              "timestamp": "2026-09-17T18:02:48",
+              "meta": {}
+            },
+            {
+              "score": 75.0,
+              "stock": "603042",
+              "timestamp": "2026-09-17T18:05:26",
+              "meta": {}
+            },
+            {
+              "score": 75.0,
+              "stock": "300939",
+              "timestamp": "2026-09-17T18:33:45",
+              "meta": {}
+            },
+            {
+              "score": 75.0,
+              "stock": "301047",
+              "timestamp": "2026-09-17T18:36:15",
+              "meta": {}
+            },
+            {
+              "score": 85.0,
+              "stock": "301047",
+              "timestamp": "2026-09-17T19:00:10",
+              "meta": {}
+            },
+            {
+              "score": 75.0,
+              "stock": "688837",
+              "timestamp": "2026-09-17T19:06:14",
+              "meta": {}
+            },
+            {
+              "score": 75.0,
+              "stock": "181001",
+              "timestamp": "2026-09-17T19:08:40",
+              "meta": {}
+            },
+            {
+              "score": 80.0,
+              "stock": "181001",
+              "timestamp": "2026-09-17T19:13:43",
+              "meta": {}
+            },
+            {
+              "score": 80.0,
+              "stock": "181001",
+              "timestamp": "2026-09-17T19:18:47",
+              "meta": {}
+            },
+            {
+              "score": 80.0,
+              "stock": "181001",
+              "timestamp": "2026-09-17T19:22:30",
+              "meta": {}
+            },
+            {
+              "score": 70.0,
+              "stock": "基础化工",
+              "timestamp": "2026-09-18T14:32:26",
+              "meta": {}
+            },
+            {
+              "score": 75.0,
+              "stock": "000001",
+              "timestamp": "2026-09-18T17:32:33",
+              "meta": {}
+            },
+            {
+              "score": 80.0,
+              "stock": "002631",
+              "timestamp": "2026-09-18T18:02:49",
+              "meta": {}
+            },
+            {
+              "score": 75.0,
+              "stock": "603268",
+              "timestamp": "2026-09-18T18:54:32",
+              "meta": {}
+            },
+            {
+              "score": 85.0,
+              "stock": "600163",
+              "timestamp": "2026-09-18T19:22:12",
+              "meta": {}
             }
           ],
-          "avg_score": 72.6
+          "avg_score": 70.8
         }
       }
     }
@@ -1200,6 +1872,510 @@
         },
         "moderator": {
           "score": 75.0
+        },
+        "reflection": {
+          "score": 50
+        }
+      }
+    },
+    {
+      "timestamp": "2026-09-14T14:31:25",
+      "stock": "其他",
+      "scores": {
+        "bull": {
+          "score": 85.0
+        },
+        "bear": {
+          "score": 70.0
+        },
+        "moderator": {
+          "score": 75.0
+        },
+        "reflection": {
+          "score": 50
+        }
+      }
+    },
+    {
+      "timestamp": "2026-09-14T18:01:45",
+      "stock": "300369",
+      "scores": {
+        "bull": {
+          "score": 50.0
+        },
+        "bear": {
+          "score": 50.0
+        },
+        "moderator": {
+          "score": 50.0
+        },
+        "reflection": {
+          "score": 50
+        }
+      }
+    },
+    {
+      "timestamp": "2026-09-14T20:28:08",
+      "stock": "600929",
+      "scores": {
+        "bull": {
+          "score": 50.0
+        },
+        "bear": {
+          "score": 50.0
+        },
+        "moderator": {
+          "score": 50.0
+        },
+        "reflection": {
+          "score": 50
+        }
+      }
+    },
+    {
+      "timestamp": "2026-09-14T21:15:03",
+      "stock": "688525",
+      "scores": {
+        "bull": {
+          "score": 90.0
+        },
+        "bear": {
+          "score": 20.0
+        },
+        "moderator": {
+          "score": 20.0
+        },
+        "reflection": {
+          "score": 50
+        }
+      }
+    },
+    {
+      "timestamp": "2026-09-14T21:33:37",
+      "stock": "508020",
+      "scores": {
+        "bull": {
+          "score": 90.0
+        },
+        "bear": {
+          "score": 95.0
+        },
+        "moderator": {
+          "score": 80.0
+        },
+        "reflection": {
+          "score": 50
+        }
+      }
+    },
+    {
+      "timestamp": "2026-09-14T21:51:38",
+      "stock": "180901",
+      "scores": {
+        "bull": {
+          "score": 20.0
+        },
+        "bear": {
+          "score": 20.0
+        },
+        "moderator": {
+          "score": 75.0
+        },
+        "reflection": {
+          "score": 50
+        }
+      }
+    },
+    {
+      "timestamp": "2026-09-14T22:12:01",
+      "stock": "508020",
+      "scores": {
+        "bull": {
+          "score": 50.0
+        },
+        "bear": {
+          "score": 20.0
+        },
+        "moderator": {
+          "score": 20.0
+        },
+        "reflection": {
+          "score": 50
+        }
+      }
+    },
+    {
+      "timestamp": "2026-09-14T22:36:52",
+      "stock": "180901",
+      "scores": {
+        "bull": {
+          "score": 20.0
+        },
+        "bear": {
+          "score": 50.0
+        },
+        "moderator": {
+          "score": 20.0
+        },
+        "reflection": {
+          "score": 50
+        }
+      }
+    },
+    {
+      "timestamp": "2026-09-15T18:02:35",
+      "stock": "300905",
+      "scores": {
+        "bull": {
+          "score": 85.0
+        },
+        "bear": {
+          "score": 75.0
+        },
+        "moderator": {
+          "score": 75.0
+        },
+        "reflection": {
+          "score": 50
+        }
+      }
+    },
+    {
+      "timestamp": "2026-09-15T18:04:31",
+      "stock": "002531",
+      "scores": {
+        "bull": {
+          "score": 80.0
+        },
+        "bear": {
+          "score": 90.0
+        },
+        "moderator": {
+          "score": 80.0
+        },
+        "reflection": {
+          "score": 50
+        }
+      }
+    },
+    {
+      "timestamp": "2026-09-16T14:31:58",
+      "stock": "半导体",
+      "scores": {
+        "bull": {
+          "score": 80.0
+        },
+        "bear": {
+          "score": 60.0
+        },
+        "moderator": {
+          "score": 80.0
+        },
+        "reflection": {
+          "score": 50
+        }
+      }
+    },
+    {
+      "timestamp": "2026-09-16T18:01:44",
+      "stock": "003006",
+      "scores": {
+        "bull": {
+          "score": 90.0
+        },
+        "bear": {
+          "score": 95.0
+        },
+        "moderator": {
+          "score": 75.0
+        },
+        "reflection": {
+          "score": 50
+        }
+      }
+    },
+    {
+      "timestamp": "2026-09-16T18:03:34",
+      "stock": "600088",
+      "scores": {
+        "bull": {
+          "score": 90.0
+        },
+        "bear": {
+          "score": 90.0
+        },
+        "moderator": {
+          "score": 75.0
+        },
+        "reflection": {
+          "score": 50
+        }
+      }
+    },
+    {
+      "timestamp": "2026-09-17T18:02:48",
+      "stock": "002487",
+      "scores": {
+        "bull": {
+          "score": 95.0
+        },
+        "bear": {
+          "score": 95.0
+        },
+        "moderator": {
+          "score": 75.0
+        },
+        "reflection": {
+          "score": 50
+        }
+      }
+    },
+    {
+      "timestamp": "2026-09-17T18:05:26",
+      "stock": "603042",
+      "scores": {
+        "bull": {
+          "score": 85.0
+        },
+        "bear": {
+          "score": 85.0
+        },
+        "moderator": {
+          "score": 75.0
+        },
+        "reflection": {
+          "score": 50
+        }
+      }
+    },
+    {
+      "timestamp": "2026-09-17T18:33:45",
+      "stock": "300939",
+      "scores": {
+        "bull": {
+          "score": 90.0
+        },
+        "bear": {
+          "score": 55.0
+        },
+        "moderator": {
+          "score": 75.0
+        },
+        "reflection": {
+          "score": 50
+        }
+      }
+    },
+    {
+      "timestamp": "2026-09-17T18:36:15",
+      "stock": "301047",
+      "scores": {
+        "bull": {
+          "score": 90.0
+        },
+        "bear": {
+          "score": 90.0
+        },
+        "moderator": {
+          "score": 75.0
+        },
+        "reflection": {
+          "score": 50
+        }
+      }
+    },
+    {
+      "timestamp": "2026-09-17T19:00:10",
+      "stock": "301047",
+      "scores": {
+        "bull": {
+          "score": 85.0
+        },
+        "bear": {
+          "score": 95.0
+        },
+        "moderator": {
+          "score": 85.0
+        },
+        "reflection": {
+          "score": 50
+        }
+      }
+    },
+    {
+      "timestamp": "2026-09-17T19:06:14",
+      "stock": "688837",
+      "scores": {
+        "bull": {
+          "score": 95.0
+        },
+        "bear": {
+          "score": 95.0
+        },
+        "moderator": {
+          "score": 75.0
+        },
+        "reflection": {
+          "score": 50
+        }
+      }
+    },
+    {
+      "timestamp": "2026-09-17T19:08:40",
+      "stock": "181001",
+      "scores": {
+        "bull": {
+          "score": 90.0
+        },
+        "bear": {
+          "score": 95.0
+        },
+        "moderator": {
+          "score": 75.0
+        },
+        "reflection": {
+          "score": 50
+        }
+      }
+    },
+    {
+      "timestamp": "2026-09-17T19:13:43",
+      "stock": "181001",
+      "scores": {
+        "bull": {
+          "score": 95.0
+        },
+        "bear": {
+          "score": 90.0
+        },
+        "moderator": {
+          "score": 80.0
+        },
+        "reflection": {
+          "score": 50
+        }
+      }
+    },
+    {
+      "timestamp": "2026-09-17T19:18:47",
+      "stock": "181001",
+      "scores": {
+        "bull": {
+          "score": 95.0
+        },
+        "bear": {
+          "score": 90.0
+        },
+        "moderator": {
+          "score": 80.0
+        },
+        "reflection": {
+          "score": 50
+        }
+      }
+    },
+    {
+      "timestamp": "2026-09-17T19:22:30",
+      "stock": "181001",
+      "scores": {
+        "bull": {
+          "score": 85.0
+        },
+        "bear": {
+          "score": 95.0
+        },
+        "moderator": {
+          "score": 80.0
+        },
+        "reflection": {
+          "score": 50
+        }
+      }
+    },
+    {
+      "timestamp": "2026-09-18T14:32:26",
+      "stock": "基础化工",
+      "scores": {
+        "bull": {
+          "score": 80.0
+        },
+        "bear": {
+          "score": 95.0
+        },
+        "moderator": {
+          "score": 70.0
+        },
+        "reflection": {
+          "score": 50
+        }
+      }
+    },
+    {
+      "timestamp": "2026-09-18T17:32:33",
+      "stock": "000001",
+      "scores": {
+        "bull": {
+          "score": 90.0
+        },
+        "bear": {
+          "score": 90.0
+        },
+        "moderator": {
+          "score": 75.0
+        },
+        "reflection": {
+          "score": 50
+        }
+      }
+    },
+    {
+      "timestamp": "2026-09-18T18:02:49",
+      "stock": "002631",
+      "scores": {
+        "bull": {
+          "score": 90.0
+        },
+        "bear": {
+          "score": 65.0
+        },
+        "moderator": {
+          "score": 80.0
+        },
+        "reflection": {
+          "score": 50
+        }
+      }
+    },
+    {
+      "timestamp": "2026-09-18T18:54:32",
+      "stock": "603268",
+      "scores": {
+        "bull": {
+          "score": 90.0
+        },
+        "bear": {
+          "score": 90.0
+        },
+        "moderator": {
+          "score": 75.0
+        },
+        "reflection": {
+          "score": 50
+        }
+      }
+    },
+    {
+      "timestamp": "2026-09-18T19:22:12",
+      "stock": "600163",
+      "scores": {
+        "bull": {
+          "score": 80.0
+        },
+        "bear": {
+          "score": 85.0
+        },
+        "moderator": {
+          "score": 85.0
         },
         "reflection": {
           "score": 50

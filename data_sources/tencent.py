@@ -117,7 +117,10 @@ def _parse_tx_response(text: str) -> list[dict[str, Any]]:
             high = float(parts[33]) if len(parts) > 33 and parts[33] else 0
             low = float(parts[34]) if len(parts) > 34 and parts[34] else 0
             change_pct = float(parts[32]) if len(parts) > 32 and parts[32] else 0
-            amount = float(parts[37]) if len(parts) > 37 and parts[37] else 0
+            # 2026-09-17: parts[37] 是万元（如 497659 = 4.98亿），归一化为亿元
+            # 修复前 _parse_tx_response 原样返回万元值，get_realtime_quote 输出 amount=497659
+            # 下游（雪球个股分析）误标为「497659.00亿」→ 推理审计 P0「无数据」误杀
+            _amount_wan = float(parts[37]) if len(parts) > 37 and parts[37] else 0
 
             # Tencent API parts[32] is already in percentage form (e.g. 16.16 means 16.16%)
             # No conversion needed — the old heuristic (divide by 100 if > 10) was wrong
@@ -135,7 +138,8 @@ def _parse_tx_response(text: str) -> list[dict[str, Any]]:
                 "change_pct": round(change_pct, 2),
                 "change_amount": change_amount,
                 "volume": volume,
-                "amount": round(amount, 2) if amount else 0,
+                # 万元→亿元 归一化（parts[37] 原始单位是万元）
+                "amount": round(_amount_wan / 10000, 2) if _amount_wan else 0,
                 "source": "tencent",
             })
         except (ValueError, IndexError) as e:

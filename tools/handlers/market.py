@@ -77,9 +77,19 @@ def register(mcp):
             rows = [{"name": x.get("industry", ""), "change_pct": x.get("avg_change_pct", 0),
                      "count": x.get("count", 0), "up_count": x.get("up_count", 0),
                      "down_count": x.get("down_count", 0)} for x in r["top"]]
+            # 2026-09-18 修复: 原 rows[-n:] 当 len(rows) < 2n 时与 rows[:n] 完全相同
+            # （行业数 8、n=12 → 两榜都是全部 8 行，top==bottom，下游 clean_industry_rank
+            #   过滤不出差异 → 快照里 top/bottom 板块名+涨跌幅完全相同 → 文章引用的
+            #   "领跌板块"实际是领涨板块（09-18 Jev 门禁实测发现该内部矛盾）。
+            #   规则: top = 涨幅最高 n 个; bottom = 涨幅最低的 n 个（即跌幅榜）；
+            #   两榜重叠（行业数 < 2n）时各取不重叠的一半，避免"领跌榜"里全是涨的。
             n = min(max(int(top_n or 20), 1), len(rows))
+            # 两榜重叠（行业数 < 2n）时各取不重叠的一半，避免"领跌榜"里全是涨的
+            half = n if 2 * n <= len(rows) else (len(rows) + 1) // 2
+            top_rows = rows[:half]
+            bottom_rows = rows[-half:]
             return compress_dict_result({"source": r.get("source"), "total": len(rows),
-                               "top": rows[:n], "bottom": rows[-n:]})
+                               "top": top_rows, "bottom": bottom_rows})
         return json.dumps(r, ensure_ascii=False, default=str)
 
     @mcp.tool(name="get_tv_industry_rank")

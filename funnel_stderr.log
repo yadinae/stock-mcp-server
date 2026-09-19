@@ -1,0 +1,20 @@
+2026-09-14 15:31:25,478 [INFO] run_funnel: Step 1: Fetching A-share universe...
+2026-09-14 15:31:26,602 [INFO] stock-mcp.tv_screener: Fetched 5298 A-shares via TV Screener (total in market: 5298, indicators: on)
+2026-09-14 15:31:26,602 [INFO] run_funnel: Fetched 5298 A-shares via TV Screener (with indicators)
+2026-09-14 15:31:26,602 [INFO] run_funnel: Got 5298 stocks from tv_screener
+2026-09-14 15:31:26,602 [INFO] run_funnel: Step 2: TV Screener already provides indicators, skipping enrichment
+2026-09-14 15:31:26,602 [INFO] run_funnel: Step 3: Running funnel pipeline...
+2026-09-14 15:31:26,720 [INFO] stock-mcp.funnel: [basic_filter] 5298 → 5222 (min_amount=5000000)
+2026-09-14 15:31:26,720 [INFO] stock-mcp.orchestrator: [basic_filter] 5298 → 5222 (117ms)
+2026-09-14 15:31:26,886 [INFO] stock-mcp.funnel: [technical] 5222 → 1170
+2026-09-14 15:31:26,887 [INFO] stock-mcp.funnel:   channel trend: 458 passed
+2026-09-14 15:31:26,887 [INFO] stock-mcp.funnel:   channel reversal: 0 passed
+2026-09-14 15:31:26,887 [INFO] stock-mcp.funnel:   channel breakout: 65 passed
+2026-09-14 15:31:26,887 [INFO] stock-mcp.funnel:   channel accumulation: 672 passed
+2026-09-14 15:31:26,891 [INFO] stock-mcp.orchestrator: [technical_multi_channel] 5222 → 1170 (170ms)
+2026-09-14 15:31:26,940 [INFO] stock-mcp.funnel: [ranking] 1170 → 12 (diversified)
+2026-09-14 15:31:26,942 [INFO] stock-mcp.orchestrator: [ranking] 1170 → 12 (50ms)
+2026-09-14 15:31:26,946 [INFO] run_funnel: Step 5: Running AI audit (no LLM mode)...
+2026-09-14 15:31:26,946 [INFO] stock-mcp.ai_auditor: LLM unavailable, auto-PASS all 12 candidates
+2026-09-14 15:31:26,946 [INFO] run_funnel: Audit: Audit: 12 PASS, 0 VETO (LLM: unavailable)
+2026-09-14 15:31:26,947 [INFO] run_funnel: Step 4: Recording signals...

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sqlite3
 import sys
 import time
@@ -48,6 +49,68 @@ logging.basicConfig(
     stream=sys.stderr,
 )
 logger = logging.getLogger("run_funnel")
+
+# --- jev audit (opt-in) -------------------------------------------------
+# Optional Jev (TypeSafe System One) cross-check of veto decisions:
+# each VETO is scored (0-10) on conviction; score < USE_JEV_VETO_FLOOR
+# downgrades back to PASS (guards against over-veto). Jev call failures
+# are logged, not fatal — LLM audit decisions stand as-is.
+USE_JEV_AUDIT = os.getenv("USE_JEV_AUDIT", "0") == "1"
+USE_JEV_VETO_FLOOR = float(os.getenv("USE_JEV_VETO_FLOOR", "4"))
+
+
+def jev_cross_check(audit_result):
+    """Jev cross-check on VETO decisions. Mutates audit_result.decisions in place
+    and recomputes counts. No-op on LLM-unavailable runs (nothing to check)."""
+    vetoed = [d for d in audit_result.decisions if d.action == "VETO"]
+    if not vetoed:
+        return
+    try:
+        from core.jev_client import jev_decide, jev_answer_summary
+    except Exception as e:
+        logger.warning("jev cross-check unavailable: %s", e)
+        return
+    # One jev call, one score question per VETO (measured ~0.3s/call total)
+    questions = {
+        f"veto_{d.code}": {
+            "type": "score",
+            "instructions": (
+                f"Score the conviction of vetoing {getattr(d, 'name', None) or d.code} "
+                f"for reason: {d.reason}"
+            ),
+            "criteria": [
+                "no grounds to veto - should not have been vetoed",
+                "weak / speculative grounds",
+                "moderate grounds, some uncertainty",
+                "strong grounds, clearly deteriorated",
+                "veto is well-justified and high-conviction",
+            ],
+        }
+        for d in vetoed
+    }
+    res = jev_decide(
+        state="Wyckoff funnel audit: code rules passed these candidates; LLM audit vetoed them. "
+               "Independently score each veto's conviction.",
+        questions=questions,
+    )
+    if not res.get("ok"):
+        logger.warning("jev cross-check failed: %s", res.get("error"))
+        return
+    summary = jev_answer_summary(res)
+    downgraded = 0
+    for d in vetoed:
+        entry = summary.get(f"veto_{d.code}", {})
+        score = entry.get("score")
+        if score is not None and score < USE_JEV_VETO_FLOOR:
+            d.action = "PASS"
+            d.reason = (f"VETO cross-check: jev conviction {score:.1f} "
+                        f"< {USE_JEV_VETO_FLOOR} ({entry.get('explanation', '')})")
+            d.confidence = max(0.2, 0.5 - score * 0.1)
+            downgraded += 1
+    if downgraded:
+        logger.info("jev cross-check: %d/%d VETOs downgraded to PASS", downgraded, len(vetoed))
+    audit_result.vetoed_count = sum(1 for d in audit_result.decisions if d.action == "VETO")
+    audit_result.passed_count = sum(1 for d in audit_result.decisions if d.action == "PASS")
 
 _BAOSTOCK_DB = _root / "data" / "baostock_cache.db"
 
@@ -230,7 +293,6 @@ def run_funnel(context: dict = None) -> PipelineResult:
     """执行完整漏斗"""
 
     ctx = context or {}
-    t0 = time.time()
 
     # 1. 获取全市场 A 股（TV Screener 优先 → 东财 → TradingView REST → baostock 降级）
     logger.info("Step 1: Fetching A-share universe...")
@@ -285,7 +347,6 @@ def run_funnel(context: dict = None) -> PipelineResult:
 
     if use_llm and HAS_LLM:
         logger.info("Step 5: Running AI audit with Agnes LLM...")
-        from core.llm_agnes import create_auditor_with_llm
         auditor = create_auditor_with_llm()
     else:
         logger.info("Step 5: Running AI audit (no LLM mode)...")
@@ -293,6 +354,11 @@ def run_funnel(context: dict = None) -> PipelineResult:
 
     audit_result = auditor.audit(result.candidates)
     logger.info("Audit: %s", audit_result.summary())
+
+    # 5b. Jev 交叉检查（opt-in）：对 LLM VETO 做独立置信度评分，低置信 VETO 降级回 PASS
+    if USE_JEV_AUDIT:
+        jev_cross_check(audit_result)
+        logger.info("Audit (post-jev): %s", audit_result.summary())
 
     # 过滤被 VETO 的候选
     vetoed_codes = set(audit_result.vetoed_codes())

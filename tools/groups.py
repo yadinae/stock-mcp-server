@@ -16,7 +16,8 @@ TOOL_GROUPS: dict[str, dict] = {
     },
     "技术分析": {
         "description": "K线数据、技术指标计算、形态识别、批量扫描",
-        "tools": ["get_technical_analysis", "technical_batch_scan", "tdx_test"],
+        "tools": ["get_technical_analysis", "technical_batch_scan", "tdx_test",
+            "analyze_chanlun", "reflection_audit"],
     },
     "技术面选股": {
         "description": "经典技术面策略全市场扫描（海龟突破/均线金叉/旗形整理/RPS突破）",
@@ -57,7 +58,7 @@ TOOL_GROUPS: dict[str, dict] = {
         "tools": [
             "portfolio_risk_diagnosis", "portfolio_correlation",
             "portfolio_full_report", "portfolio_rebalance", "portfolio_signal",
-            "portfolio_inspect",
+            "portfolio_inspect", "portfolio_inspect_progress",
         ],
     },
     "Narrative叙事": {
@@ -67,19 +68,11 @@ TOOL_GROUPS: dict[str, dict] = {
             "boards_with_narratives", "cross_stock_narratives",
         ],
     },
-    "情绪存储": {
-        "description": "每日情绪快照采集、历史查询、跨日趋势对比",
-        "tools": [
-            "sentiment_collect", "sentiment_save", "sentiment_query",
-            "sentiment_trend", "sentiment_list",
-        ],
-    },
     "知识库": {
-        "description": "研报/策略文档本地缓存、关键词检索、LLM上下文注入",
+        "description": "研报/策略文档本地缓存、关键词检索、LLM上下文注入、管理",
         "tools": [
-            "methodology_add", "methodology_batch_add", "methodology_search",
-            "methodology_context", "methodology_list", "methodology_stats",
-            "methodology_cleanup",
+            "methodology_add", "methodology_search", "methodology_get",
+            "methodology_context", "methodology_list", "methodology_remove",
         ],
     },
     "交易日志": {
@@ -123,6 +116,7 @@ TOOL_GROUPS: dict[str, dict] = {
             "unit_economics", "value_creation_plan", "stock_score",
             "stock_signals", "strategy_scan", "check_trap_risk",
             "dd_checklist", "analyze_policy", "analyze_stock_agent",
+            "reflection_audit", "debate_multiagent",
         ],
     },
     "基金指数": {
@@ -137,7 +131,7 @@ TOOL_GROUPS: dict[str, dict] = {
         "description": "加密货币行情/K线/排行（Binance/Kraken）",
         "tools": [
             "get_crypto_quote", "get_crypto_quotes",
-            "get_crypto_kline", "get_top_crypto",
+            "get_crypto_kline", "get_tv_crypto_kline", "get_top_crypto",
         ],
     },
     "市场数据": {
@@ -149,7 +143,7 @@ TOOL_GROUPS: dict[str, dict] = {
     },
     "系统": {
         "description": "缓存统计、数据源健康监控",
-        "tools": ["get_cache_stats", "get_data_source_health"],
+        "tools": ["get_cache_stats", "get_data_source_health", "tv_ws_status"],
     },
     "复合决策": {
         "description": "组合调仓信号、盘中异动预警（组合多工具输出做决策判断）",
@@ -160,13 +154,6 @@ TOOL_GROUPS: dict[str, dict] = {
         "tools": [
             "sentiment_store", "sentiment_get", "sentiment_trend",
             "sentiment_anomaly", "sentiment_stock_store", "sentiment_stock_get",
-        ],
-    },
-    "策略知识库": {
-        "description": "本地策略/研报知识缓存，支持检索、注入、管理",
-        "tools": [
-            "methodology_add", "methodology_search", "methodology_get",
-            "methodology_context", "methodology_list", "methodology_remove",
         ],
     },
     "可观测性": {

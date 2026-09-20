@@ -47,16 +47,44 @@ auto_register(mcp)
 # ── 启动 ──────────────────────────────────────────────────────
 if __name__ == "__main__":
     import os
+    from core.mcp_auth import build_token_verifier
+
     mode = os.environ.get("STOCK_MCP_MODE", "stdio")
     port = int(os.environ.get("STOCK_MCP_PORT", "8902"))
     if mode == "http":
         # streamable HTTP 模式（供 cron 脚本 / Hermes 远程调用）
         import uvicorn
-        mcp.settings.host = "0.0.0.0"
+        # P0 修复：http 模式必须携带 Bearer token 认证（STOCK_MCP_API_KEY）。
+        # 未配置 key 时直接拒绝启动，避免退回"零认证"状态。
+        verifier = build_token_verifier()
+        if verifier is None:
+            logger.error("STOCK_MCP_API_KEY 未设置，http 模式拒绝启动（避免零认证暴露）")
+            sys.exit(2)
+        # 默认仅监听回环；确需远程（如 QwenPaw）时通过 STOCK_MCP_HOST 显式放开，
+        # 且必须配合 token 认证（verifier 已强制）。
+        host = os.environ.get("STOCK_MCP_HOST", "127.0.0.1")
+        mcp.settings.host = host
         mcp.settings.port = port
-        # 允许公网 IP 访问（QwenPaw 通过 8.208.28.70:8902 连接）
-        mcp.settings.transport_security.allowed_hosts = ["127.0.0.1:*", "localhost:*", "[::1]:*", "8.208.28.70:*"]
-        mcp.settings.transport_security.allowed_origins = ["http://127.0.0.1:*", "http://localhost:*", "http://[::1]:*", "http://8.208.28.70:*"]
-        uvicorn.run(mcp.streamable_http_app(), host="0.0.0.0", port=port, log_level="warning")
+        mcp.settings.transport_security.allowed_hosts = [
+            "127.0.0.1:*", "localhost:*", "[::1]:*",
+        ]
+        mcp.settings.transport_security.allowed_origins = [
+            "http://127.0.0.1:*", "http://localhost:*", "http://[::1]:*",
+        ]
+        # 注入 FastMCP auth 中间件所需的 token verifier。
+        # streamable_http_app() 仅当 self.settings.auth 非 None 时挂载 auth 中间件，
+        # 因此必须给 settings.auth 赋 AuthSettings 实例（issuer_url 等保持 None，
+        # 仅启用 token_verifier 路径）。
+        from mcp.server.auth.settings import AuthSettings
+        mcp._token_verifier = verifier
+        # AuthSettings.issuer_url/resource_server_url 是必填 URL 字段，
+        # 纯 token-verifier 场景用占位 URL 满足 pydantic，实际不走 OAuth 发现流程。
+        _placeholder = f"http://{host if host != '0.0.0.0' else '127.0.0.1'}:{port}"
+        mcp.settings.auth = AuthSettings(
+            issuer_url=_placeholder, resource_server_url=_placeholder,
+            required_scopes=[],
+        )
+        app = mcp.streamable_http_app()
+        uvicorn.run(app, host=host, port=port, log_level="warning")
     else:
         mcp.run()

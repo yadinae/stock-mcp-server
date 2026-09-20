@@ -84,18 +84,36 @@ def run_parallel(tasks: dict[str, Callable[[], Any]],
     return results
 
 
-def parallel_map(fn: Callable, items: list, max_workers: int = 4) -> list:
-    """对列表每个元素并行执行函数（复用全局线程池）"""
+def parallel_map(fn: Callable, items: list, max_workers: int = 4,
+                 timeout: float = 30) -> list:
+    """对列表每个元素并行执行函数（复用全局线程池，带 per-call deadline）"""
     if not items:
         return []
     if len(items) == 1:
         return [fn(items[0])]
 
     futures = [_executor.submit(fn, item) for item in items]
+    done, not_done = _wait_with_timeout(futures, timeout)
     results = []
-    for f in futures:
-        try:
-            results.append(f.result())
-        except Exception as e:
-            results.append({"error": str(e)})
+    for i, f in enumerate(futures):
+        if f in done:
+            try:
+                results.append(f.result())
+            except Exception as e:
+                results.append({"error": str(e)[:100]})
+        else:
+            f.cancel()
+            results.append({"error": "timeout"})
     return results
+
+
+def _wait_with_timeout(futures, timeout: float):
+    """用 wait() 实现有 deadline 的等待，返回 (done, not_done)。"""
+    from concurrent.futures import wait, FIRST_COMPLETED
+    deadline = time.monotonic() + timeout
+    done, not_done = set(), set(futures)
+    while not_done and (remaining := deadline - time.monotonic()) > 0:
+        done_step, not_done = wait(not_done, timeout=remaining,
+                                   return_when=FIRST_COMPLETED)
+        done |= done_step
+    return done, not_done

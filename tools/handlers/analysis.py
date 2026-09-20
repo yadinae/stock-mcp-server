@@ -85,6 +85,10 @@ def register(mcp):
         if err:
             return _error_response(code, err)
 
+        # P1 修复：capital 输入范围校验（防资源耗尽 / DoS）
+        if not (1e3 <= capital <= 1e9):
+            return _error_response(code, f"capital 超出合法范围 [1000, 1000000000]，收到 {capital}")
+
         strategies = list_backtest_strategies()
         valid_ids = [s["id"] for s in strategies]
         if strategy not in valid_ids:

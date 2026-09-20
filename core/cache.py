@@ -12,6 +12,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
+from collections import OrderedDict
 from functools import wraps
 from typing import Any, Callable, Optional
 
@@ -27,11 +28,12 @@ TTL_AI_ANALYSIS = 0     # AI 分析：不缓存（每次可能不同）
 
 
 class TTLCache:
-    """线程安全的 TTL 缓存"""
+    """线程安全的 TTL 缓存（带 max_size LRU 上限，防内存无界增长）"""
 
-    def __init__(self, default_ttl: int = 60):
+    def __init__(self, default_ttl: int = 60, max_size: int = 10000):
         self._default_ttl = default_ttl
-        self._store: dict[str, tuple[float, Any]] = {}
+        self._max_size = max_size
+        self._store: "OrderedDict[str, tuple[float, Any]]" = OrderedDict()
         self._lock = threading.Lock()
         self._hits = 0
         self._misses = 0
@@ -49,13 +51,18 @@ class TTLCache:
                 self._misses += 1
                 return None
             self._hits += 1
+            self._store.move_to_end(key)  # LRU: 命中刷新位置
             return value
 
     def set(self, key: str, value: Any, ttl: Optional[int] = None) -> None:
-        """设置缓存"""
+        """设置缓存（超过 max_size 时驱逐最久未访问条目）"""
         expire_at = time.monotonic() + (ttl if ttl is not None else self._default_ttl)
         with self._lock:
+            if key in self._store:
+                self._store.move_to_end(key)
             self._store[key] = (expire_at, value)
+            while len(self._store) > self._max_size:
+                self._store.popitem(last=False)  # 驱逐最旧（LRU head）
 
     def get_or_compute(self, key: str, compute: Callable[[], Any],
                        ttl: Optional[int] = None) -> Any:

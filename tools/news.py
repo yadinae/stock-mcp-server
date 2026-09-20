@@ -13,6 +13,7 @@ from typing import Any
 import httpx
 
 from core.cache import get_cache, make_cache_key, TTL_NEWS
+from urllib.parse import quote
 
 logger = logging.getLogger("stock-mcp.news")
 
@@ -22,11 +23,17 @@ HTTP_HEADERS = {
 }
 
 
+def _safe_query(query: str) -> str:
+    """URL-encode query 并拒绝可破坏 query string 的字符（SSRF 防护）。"""
+    return quote(query, safe="")
+
+
 def _search_sina(query: str, results: list):
     """搜索新浪财经新闻"""
     try:
-        url = f"https://search.sina.com.cn/stock/?q={query}&range=title&c=news&sort=time"
-        resp = httpx.get(url, headers=HTTP_HEADERS, timeout=15, follow_redirects=True)
+        safe_q = _safe_query(query)
+        url = f"https://search.sina.com.cn/stock/?q={safe_q}&range=title&c=news&sort=time"
+        resp = httpx.get(url, headers=HTTP_HEADERS, timeout=15, follow_redirects=False)
 
         items = re.findall(
             r'<h2[^>]*>\s*<a[^>]*href="([^"]*)"[^>]*>(.*?)</a>\s*</h2>',
@@ -61,8 +68,9 @@ def _search_sina(query: str, results: list):
 def _search_baidu_news(query: str, results: list):
     """搜索百度新闻"""
     try:
-        url = f"https://news.baidu.com/s?tn=news&word={query}&pn=0&rn=10&cl=2&ct=1"
-        resp = httpx.get(url, headers=HTTP_HEADERS, timeout=15, follow_redirects=True)
+        safe_q = _safe_query(query)
+        url = f"https://news.baidu.com/s?tn=news&word={safe_q}&pn=0&rn=10&cl=2&ct=1"
+        resp = httpx.get(url, headers=HTTP_HEADERS, timeout=15, follow_redirects=False)
 
         items = re.findall(
             r'<h3[^>]*>.*?<a[^>]*href="([^"]*)"[^>]*>(.*?)</a>',

@@ -161,8 +161,10 @@ def _load_llm_config() -> tuple[str, str, str, Optional[str]]:
                 return p.get("base_url") or None, p["api_key"], model, None
 
         return None, "", model, "未找到可用的 LLM API Key"
-    except Exception as e:
-        return None, "", "", f"读取配置失败: {e}"
+    except Exception:
+        # P1 修复：不泄露绝对路径/异常细节（防信息泄露），详情仅记日志
+        logger.exception("LLM 配置加载失败")
+        return None, "", "", "LLM 配置缺失或不可读，请联系管理员检查 STOCK_MCP_LLM_CONFIG"
 
 
 def _sanitize_prompt_text(text: str) -> str:

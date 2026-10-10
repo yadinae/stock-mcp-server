@@ -132,7 +132,46 @@ def register(mcp):
 
     @mcp.tool(name="analyze_limitup_tiers")
     def analyze_limitup_tiers() -> str:
-        """涨停梯队分析 — 首板/二连板/三连板及以上/炸板分类 + 市场统计。
+        """涨停梯队分析 — 首板/二连板/三连板及以上/炸板分类 + 市场统计
         数据源: 东财 datacenter + 腾讯K线连板判断"""
         from data_sources.em_market import get_limitup_tiers
         return json.dumps(get_limitup_tiers(), ensure_ascii=False, default=str)
+
+    @mcp.tool(name="is_trading_day")
+    def is_trading_day_tool(year: int = 0, month: int = 0, day: int = 0) -> str:
+        """A 股交易日检测 — 判断指定日期是否为 A 股交易日（含法定节假日 + 调休）
+        Args:
+            year: 年份（默认今年）
+            month: 月份（默认本月）
+            day: 日期（默认今天）
+        Returns:
+            JSON: {is_trading_day: bool, holiday_name: str|None, reason: str}
+        """
+        from core.vacation_checker import is_a_share_trading_day, get_today_holiday_name
+        from datetime import datetime
+        from datetime import date as _date
+
+        if year is None:
+            today = datetime.now()
+            year, month, day = today.year, today.month, today.day
+
+        # Validate date components before passing to date()
+        try:
+            _date(year, month, day)
+        except ValueError as e:
+            return json.dumps({"error": f"Invalid date: {e}"}, ensure_ascii=False)
+        y = year or datetime.now().year
+        m = month or datetime.now().month
+        d = day or datetime.now().day
+        trading = is_a_share_trading_day(y, m, d)
+        holiday_name = None
+        if not trading:
+            holiday_name = get_today_holiday_name(y, m, d)
+            reason = f"{y}-{m:02d}-{d:02d} 是节假日（{holiday_name}）" if holiday_name else f"{y}-{m:02d}-{d:02d} 是周末"
+        else:
+            reason = f"{y}-{m:02d}-{d:02d} 是 A 股交易日"
+        return json.dumps({
+            "is_trading_day": trading,
+            "holiday_name": holiday_name,
+            "reason": reason,
+        }, ensure_ascii=False)

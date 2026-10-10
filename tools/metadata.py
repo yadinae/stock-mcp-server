@@ -574,6 +574,11 @@ TOOL_META: dict[str, dict] = {
         "keywords": ["板块", "行业", "概念", "地域", "归属"],
         "data_source": "eastmoney_emweb", "market": ["A"],
     },
+    "is_trading_day": {
+        "group": "市场数据", "complexity": "low", "latency": "fast",
+        "keywords": ["交易日", "节假日", "休市", "A股", "日历"],
+        "data_source": "local", "market": ["A"],
+    },
 
     # ── 系统 (system) ──
     "get_cache_stats": {

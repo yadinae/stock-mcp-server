@@ -46,7 +46,7 @@ def _industry_of(code: str) -> str:
         from data_sources.em_market import get_stock_boards
         b = get_stock_boards(code)
         return b.get("industry") or "未知"
-    except (httpx.HTTPError, httpx.RequestError):
+    except Exception:  # 2026-10-14: emweb 在部分机房 SSL 握手超时（URLError），行业拿不到不影响风险诊断
         return "未知"
 
 

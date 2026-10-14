@@ -85,7 +85,7 @@ def _fetch_tx_realtime(codes: list[str]) -> list[dict[str, Any]]:
     url = f"https://qt.gtimg.cn/q={','.join(tx_codes)}"
     health = get_health_tracker()
     try:
-        resp = httpx.get(url, headers=TX_HEADERS, timeout=HTTP_TIMEOUT, proxy=get_proxy_url())
+        resp = httpx.get(url, headers=TX_HEADERS, timeout=HTTP_TIMEOUT)
         resp.encoding = "gbk"
         result = _parse_tx_response(resp.text)
         health.record_success("tencent")
@@ -249,7 +249,7 @@ def get_kline(code: str, days: int = 60) -> dict[str, Any]:
             f"https://web.ifzq.gtimg.cn/appstock/app/fqkline/"
             f"get?param={tx_code},day,,,{days},qfq"
         )
-        resp = httpx.get(url, headers=KLINE_HEADERS, timeout=HTTP_TIMEOUT, proxy=get_proxy_url())
+        resp = httpx.get(url, headers=KLINE_HEADERS, timeout=HTTP_TIMEOUT)
         data = resp.json()
         records = _parse_kline_response(data, tx_code)
 

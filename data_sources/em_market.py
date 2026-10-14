@@ -10,6 +10,7 @@
 - zx.10jqka.com.cn: 200 ✅ — 同花顺热点
 """
 import json
+import os
 import time
 import urllib.request
 import urllib.parse
@@ -187,7 +188,30 @@ def get_stock_boards(code: str) -> dict:
 
 
 def get_industry_rank_tv(top_n: int = 20) -> dict:
-    """TV REST 行业排名（push2 替代源，本地 200 ✅）"""
+    """TV REST 行业排名（push2 替代源，本地 200 ✅）
+    2026-10-14: scanner.tradingview.com 国内机房不可达（Errno 101），
+    支持 STOCK_MCP_PROXY（http://user:pass@ip:port，如 webshare）走代理访问；
+    无代理或代理失败时降级东财板块行情接口。"""
+    # ── 降级源：腾讯财经行业板块排行（国内机房直连稳定；东财 push2 对机房 IP 403） ──
+    def _fallback_from_eastmoney() -> dict:
+        try:
+            url = ("https://proxy.finance.qq.com/ifzqgtimg/appstock/app/mktHs/rank"
+                   "?l=100&p=1&t=01/averatio&o=0")
+            req = urllib.request.Request(url, headers={
+                "User-Agent": UA, "Referer": "https://gu.qq.com/"})
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                rows = json.loads(resp.read().decode()).get("data") or []
+            items = [{
+                "industry": r0.get("bd_name", ""),
+                "avg_change_pct": float(r0.get("bd_zdf") or 0),
+                "count": 0, "up_count": 0, "down_count": 0,
+            } for r0 in rows if r0.get("bd_name")]
+            if items:
+                return {"source": "tencent_board_fallback", "total": len(items), "top": items[:top_n]}
+        except Exception:
+            pass
+        return {"source": "tradingview_rest", "error": "TV unreachable and fallback empty", "top": []}
+
     try:
         payload = json.dumps({
             "filter": [{"left": "market_cap_basic", "operation": "nempty"}],
@@ -201,8 +225,10 @@ def get_industry_rank_tv(top_n: int = 20) -> dict:
         req = urllib.request.Request("https://scanner.tradingview.com/china/scan", data=payload, headers={
             "User-Agent": UA, "Content-Type": "application/json", "Accept": "application/json",
         })
-        with urllib.request.urlopen(req, timeout=12) as resp:
-            data = json.loads(resp.read().decode())
+        from core.proxy import proxy_request
+        data = json.loads(proxy_request("https://scanner.tradingview.com/china/scan",
+            data=payload, headers={"User-Agent": UA, "Content-Type": "application/json",
+                                   "Accept": "application/json"}, timeout=12))
         agg = {}
         for row in (data.get("data") or []):
             v = row.get("d") or []
@@ -224,7 +250,11 @@ def get_industry_rank_tv(top_n: int = 20) -> dict:
         } for k, v in agg.items()]
         industries.sort(key=lambda x: -x["avg_change_pct"])
         return {"source": "tradingview_rest", "total": len(industries), "top": industries[:top_n]}
-    except (httpx.HTTPError, httpx.RequestError) as e:
+    except Exception as e:
+        fb = _fallback_from_eastmoney()
+        if fb.get("top"):
+            fb["tv_error"] = str(e)
+            return fb
         return {"source": "tradingview_rest", "error": str(e), "top": []}
 
 
@@ -340,7 +370,8 @@ def get_limitup_tiers() -> dict:
     def _check_consecutive(code: str, current_chg: float):
         """腾讯K线判断连板天数 + 封板质量"""
         sec = _twitter_code(code)
-        url = f"https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param={sec},day,,,20,qfq"
+        # 2026-10-14: https 版对国内机房 python TLS 指纹 501，http 版 200（K线公开数据，明文可接受）
+        url = f"http://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param={sec},day,,,20,qfq"
         try:
             raw = _http_get(url, referer="https://gu.qq.com/", timeout=10)
             data = json.loads(raw)
@@ -367,7 +398,7 @@ def get_limitup_tiers() -> dict:
                 else:
                     break
             return days, is_board
-        except (httpx.HTTPError, httpx.RequestError):
+        except Exception:  # 含 urllib.error.HTTPError（腾讯 501/限流）——默认按首板处理
             return 1, True
 
     # 1. 当日涨停股（东财 datacenter）

@@ -69,14 +69,14 @@ def market_overview() -> dict:
     except (KeyError, ValueError, TypeError, AttributeError):
         results["sectors"] = {}
 
-    # 美股三大指数
+    # 美股三大指数（yfinance 限流/网络失败时静默降级为空，不阻塞 A 股部分）
     us_indices = []
     for code in ("DJI", "IXIC", "INX"):
         try:
             q = yahoo.get_realtime_quote(code)
             us_indices.append({"name": q.get("name") or code, "code": code,
                                "price": q.get("price"), "change_pct": q.get("change_pct")})
-        except (KeyError, ValueError, TypeError, AttributeError):
+        except Exception:  # 含 YFRateLimitError / URLError（国内机房常见，2026-10-14）
             pass
     results["us_indices"] = us_indices
     return results

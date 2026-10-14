@@ -103,7 +103,8 @@ def _fetch_via_tradingview(page_size: int = 5500) -> List[dict]:
         },
     )
     try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
+        from core.safe_http import safe_urlopen_legacy
+        with safe_urlopen_legacy(req, timeout=15) as resp:
             data = json.loads(resp.read().decode())
 
         total = data.get("totalCount", 0)

@@ -180,7 +180,7 @@ class TTLCache:
     def make_key(self, *parts) -> str:
         """从多个部分生成缓存 key。"""
         raw = json.dumps(parts, sort_keys=True, default=str)
-        return hashlib.md5(raw.encode()).hexdigest()
+        return hashlib.sha256(raw.encode(), usedforsecurity=False).hexdigest()
 
 
 # ── Failure Cooldown ───────────────────────────────────────────────────────

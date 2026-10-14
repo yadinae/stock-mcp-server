@@ -69,7 +69,7 @@ def _get_conn() -> sqlite3.Connection:
 def _content_hash(content: str) -> str:
     """简单内容哈希（去重用）"""
     import hashlib
-    return hashlib.md5(content.strip().encode("utf-8")).hexdigest()[:16]
+    return hashlib.sha256(content.strip().encode("utf-8"), usedforsecurity=False).hexdigest()[:16]
 
 
 # ── 写入 ──────────────────────────────────────────────────────

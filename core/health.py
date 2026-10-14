@@ -153,6 +153,7 @@ def probe_all_sources() -> list[dict]:
     """实时探测所有数据源的可达性和延迟（替代 Workers 内存统计不可靠的问题）"""
     import urllib.request
     import json as _json
+    from core.safe_http import safe_urlopen_legacy
 
     results = []
     for name, cfg in PROBE_SOURCES.items():
@@ -163,7 +164,7 @@ def probe_all_sources() -> list[dict]:
                 data=cfg.get("body", "").encode() if cfg.get("body") else None,
                 headers={"User-Agent": "stock-mcp-server/1.0"},
             )
-            with urllib.request.urlopen(req, timeout=cfg["timeout"]) as resp:
+            with safe_urlopen_legacy(req, timeout=cfg["timeout"]) as resp:
                 data = resp.read()
                 elapsed_ms = round((time.time() - start) * 1000)
                 encoding = cfg.get("encoding", "utf-8")

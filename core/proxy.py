@@ -136,7 +136,8 @@ def _fetch_from_api(api_key: str) -> list[dict]:
             "https://proxy.webshare.io/api/v2/proxy/list/?mode=direct",
             headers={"Authorization": f"Token {api_key}", "Content-Type": "application/json"},
         )
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        from core.safe_http import safe_urlopen_legacy
+        with safe_urlopen_legacy(req, timeout=10) as resp:
             data = json.loads(resp.read())
             proxies = []
             for p in data.get("results", []):

@@ -68,7 +68,7 @@ class HighTightFlagStrategy(BaseStrategy):
                         "consolidation_pct": round((high10 / low10 - 1) * 100, 1),
                         "vol_shrink_ratio": round(float(df['volume'].iloc[-1]) / vol_ma20, 2),
                     })
-            except Exception as e:
+            except (KeyError, ValueError, TypeError, AttributeError) as e:
                 logger.warning(f"[{symbol}] HighTightFlag 计算失败: {e}")
                 continue
 

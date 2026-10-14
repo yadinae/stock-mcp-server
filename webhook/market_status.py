@@ -130,7 +130,7 @@ def check_data_freshness() -> dict:
                 "today": today_str,
                 "detail": "未能从行情中提取日期",
             }
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         logger.warning("上证指数行情获取失败: %s", e)
         return {
             "is_fresh": False,
@@ -171,7 +171,7 @@ def check_holiday_api() -> dict:
                     "detail": f"{today_str} 是{'节假日' if day_info == '1' else '周末'}",
                 }
         return {"is_trading": None, "detail": f"API 返回格式异常: {data}"}
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         logger.warning("节假日 API 不可用: %s", e)
         return {"is_trading": None, "detail": f"API 不可用: {e}"}
 

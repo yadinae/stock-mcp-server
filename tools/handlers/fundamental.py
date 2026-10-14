@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import httpx
 
 
 def register(mcp):
@@ -104,7 +105,7 @@ def register(mcp):
                 "records": data[:100],
                 "count": len(data[:100]),
             }, ensure_ascii=False, default=str)
-        except Exception as e:
+        except (httpx.HTTPError, httpx.RequestError) as e:
             return json.dumps({"error": str(e), "code": code}, ensure_ascii=False)
 
     @mcp.tool(name="get_us_key_indicators")
@@ -127,7 +128,7 @@ def register(mcp):
                 "records": data,
                 "count": len(data),
             }, ensure_ascii=False, default=str)
-        except Exception as e:
+        except (httpx.HTTPError, httpx.RequestError) as e:
             return json.dumps({"error": str(e), "code": code}, ensure_ascii=False)
 
     # ── 东财财务数据 ──────────────────────────────────────
@@ -161,7 +162,7 @@ def register(mcp):
         from data_sources.global_stock import yahoo_key_statistics
         try:
             return json.dumps(yahoo_key_statistics(symbol.strip().upper()), ensure_ascii=False, default=str)
-        except Exception as e:
+        except (httpx.HTTPError, httpx.RequestError) as e:
             return json.dumps({"error": str(e), "symbol": symbol}, ensure_ascii=False)
 
     @mcp.tool(name="get_institutional_holders")
@@ -171,7 +172,7 @@ def register(mcp):
         from data_sources.global_stock import yahoo_institutional_holders
         try:
             return json.dumps(yahoo_institutional_holders(symbol.strip().upper()), ensure_ascii=False, default=str)
-        except Exception as e:
+        except (httpx.HTTPError, httpx.RequestError) as e:
             return json.dumps({"error": str(e), "symbol": symbol}, ensure_ascii=False)
 
     @mcp.tool(name="get_options_chain")
@@ -181,7 +182,7 @@ def register(mcp):
         from data_sources.global_stock import options_chain
         try:
             return json.dumps(options_chain(symbol.strip().upper()), ensure_ascii=False, default=str)
-        except Exception as e:
+        except (httpx.HTTPError, httpx.RequestError) as e:
             return json.dumps({"error": str(e), "symbol": symbol}, ensure_ascii=False)
 
     @mcp.tool(name="get_sec_filings")
@@ -196,7 +197,7 @@ def register(mcp):
             filings = sec_filings(cik_info["cik"], form_type=form_type)
             filings["ticker"] = tk
             return json.dumps(filings, ensure_ascii=False, default=str)
-        except Exception as e:
+        except (httpx.HTTPError, httpx.RequestError) as e:
             return json.dumps({"error": str(e), "ticker": ticker}, ensure_ascii=False)
 
     @mcp.tool(name="get_sec_xbrl")
@@ -210,7 +211,7 @@ def register(mcp):
             if "error" in cik_info: return json.dumps(cik_info, ensure_ascii=False)
             metrics_list = [m.strip() for m in metrics.split(",") if m.strip()] if metrics else None
             return json.dumps(sec_xbrl_facts(cik_info["cik"], metrics=metrics_list), ensure_ascii=False, default=str)
-        except Exception as e:
+        except (httpx.HTTPError, httpx.RequestError) as e:
             return json.dumps({"error": str(e), "ticker": ticker}, ensure_ascii=False)
 
     @mcp.tool(name="search_global_stock")
@@ -221,7 +222,7 @@ def register(mcp):
         try:
             results = stock_search(keyword)
             return json.dumps({"keyword": keyword, "results": results, "count": len(results)}, ensure_ascii=False, default=str)
-        except Exception as e:
+        except (httpx.HTTPError, httpx.RequestError) as e:
             return json.dumps({"error": str(e), "keyword": keyword}, ensure_ascii=False)
 
     @mcp.tool(name="get_us_market_ranking")
@@ -233,5 +234,5 @@ def register(mcp):
             sort_field_map = {"change_pct": "f3", "volume": "f5", "amount": "f6"}
             data = market_stock_list(market=market, sort_field=sort_field_map.get(sort_by, "f3"), sort_desc=not ascending, page=page)
             return json.dumps({"market": market, "sort_by": sort_by, "total": data["total"], "stocks": data["stocks"], "page": page}, ensure_ascii=False, default=str)
-        except Exception as e:
+        except (httpx.HTTPError, httpx.RequestError) as e:
             return json.dumps({"error": str(e)}, ensure_ascii=False)

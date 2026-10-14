@@ -5,6 +5,9 @@
 """
 import json
 import time
+import socket
+import json
+import urllib.error
 
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"
 
@@ -37,7 +40,7 @@ def analyze_hot_money(code: str = ""):
         q = tencent.get_realtime_quote(code)
         if q and q.get("name"):
             analysis["name"] = q["name"]
-    except Exception:
+    except (urllib.error.URLError, urllib.error.HTTPError, socket.timeout, json.JSONDecodeError):
         pass
 
     # 2. 龙虎榜深度分析
@@ -72,7 +75,7 @@ def analyze_hot_money(code: str = ""):
                 analysis["analysis"].append(
                     f"🔍 游资 {y.get('name', '')}({y.get('style', '')}) {yz.get('verdict', '')} — "
                     f"净{'买' if (yz.get('net') or 0) >= 0 else '卖'}{abs(yz.get('net') or 0):.0f}万")
-    except Exception as e:
+    except (urllib.error.URLError, urllib.error.HTTPError, socket.timeout, json.JSONDecodeError) as e:
         analysis["analysis"].append(f"龙虎榜分析失败: {str(e)[:60]}")
 
     # 3. 资金流
@@ -83,7 +86,7 @@ def analyze_hot_money(code: str = ""):
             main_net = sum(f.get("main_net") or 0 for f in flow)
             analysis["fund_flow_trend"]["main_net_120d"] = round(main_net / 1e8, 2)  # 亿
             analysis["fund_flow_trend"]["signal"] = "主力流入" if main_net > 0 else "主力流出"
-    except Exception:
+    except (urllib.error.URLError, urllib.error.HTTPError, socket.timeout, json.JSONDecodeError):
         pass
 
     # 4. 板块概念
@@ -100,7 +103,7 @@ def analyze_hot_money(code: str = ""):
                 inflow = (matched.get("net_inflow") or 0) / 1e8
                 analysis["analysis"].append(
                     f"📊 所属概念「{matched['name']}」主力净流入: {'+' if inflow > 0 else ''}{inflow:.2f}亿")
-    except Exception:
+    except (urllib.error.URLError, urllib.error.HTTPError, socket.timeout, json.JSONDecodeError):
         pass
 
     # 5. 全市场龙虎榜背景
@@ -111,7 +114,7 @@ def analyze_hot_money(code: str = ""):
             top_buy = sum(1 for s in stocks if (s.get("net_buy_wan") or 0) > 0)
             top_sell = sum(1 for s in stocks if (s.get("net_buy_wan") or 0) < 0)
             analysis["analysis"].append(f"🏆 今日全市场龙虎榜: {top_buy}只净买入, {top_sell}只净卖出")
-    except Exception:
+    except (urllib.error.URLError, urllib.error.HTTPError, socket.timeout, json.JSONDecodeError):
         pass
 
     # 6. 风险
@@ -168,7 +171,7 @@ def analyze_policy(code: str = "", sector: str = ""):
             if tags:
                 stock_sector = stock_sector or tags[0]
                 stock_info["sectors"] = tags[:5]
-        except Exception:
+        except (urllib.error.URLError, urllib.error.HTTPError, socket.timeout, json.JSONDecodeError):
             pass
 
     target_sector = stock_sector or "股市"
@@ -192,7 +195,7 @@ def analyze_policy(code: str = "", sector: str = ""):
                     all_industry.append(entry)
                 else:
                     all_macro.append(entry)
-    except Exception:
+    except (urllib.error.URLError, urllib.error.HTTPError, socket.timeout, json.JSONDecodeError):
         pass
 
     # 个股政策相关新闻
@@ -204,7 +207,7 @@ def analyze_policy(code: str = "", sector: str = ""):
                 title = n.get("title") or ""
                 if any(k in title for k in ["政策", "规定", "监管", "通知", "意见", "办法", "条例", "规划", "纲要", "指示", "改革"]):
                     company_news.append(f"📄 {title}")
-        except Exception:
+        except (urllib.error.URLError, urllib.error.HTTPError, socket.timeout, json.JSONDecodeError):
             pass
 
     # 影响评估

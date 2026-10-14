@@ -6,6 +6,7 @@ from core.helpers import (
     _validate_code, _error_response,
     _get_realtime_quote, _get_kline, _get_stock_info,
 )
+from core import cost_guard
 from core.parallel import run_parallel
 from tools.technical import analyze as analyze_technical
 from tools.news import search_news
@@ -14,6 +15,7 @@ from tools.st_risk import get_st_risk
 from tools.backtest import run_backtest, list_backtest_strategies
 from tools import advanced2_dcf
 from tools import advanced2_unit
+import httpx
 
 
 def register(mcp):
@@ -29,6 +31,11 @@ def register(mcp):
         err = _validate_code(code)
         if err:
             return _error_response(code, err)
+
+        # medium 修复：per-client 日调用限额（防 token 泄露后 LLM 费用失控）
+        allowed, msg = cost_guard.check_cost("analyze_stock_ai", client_id=code)
+        if not allowed:
+            return _error_response(code, msg)
 
         stock_name = name or _get_stock_info(code).get("name", "")
 
@@ -48,7 +55,7 @@ def register(mcp):
         if records:
             try:
                 technical = analyze_technical(records, code)
-            except Exception as e:
+            except (httpx.HTTPError, httpx.RequestError) as e:
                 technical = {"error": str(e)}
 
         result = ai_analyze(
@@ -147,7 +154,7 @@ def register(mcp):
                 "error": f"Webhook 模块加载失败: {e}",
                 "note": "请确保 webhook/ 模块完整（config.py, alerter.py, rules.py, notifier.py）",
             }, ensure_ascii=False)
-        except Exception as e:
+        except (httpx.HTTPError, httpx.RequestError) as e:
             return json.dumps({
                 "status": "error",
                 "error": str(e),

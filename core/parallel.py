@@ -39,7 +39,7 @@ def run_parallel(tasks: dict[str, Callable[[], Any]],
         fut = _executor.submit(fn)
         try:
             return {name: fut.result(timeout=timeout)}
-        except Exception as e:
+        except (KeyError, ValueError, TypeError, AttributeError) as e:
             fut.cancel()
             return {name: {"error": str(e) if not isinstance(e, TimeoutError) else f"超时（>{timeout}s）"}}
 
@@ -49,7 +49,7 @@ def run_parallel(tasks: dict[str, Callable[[], Any]],
     def safe_run(name: str, fn: Callable) -> tuple[str, Any]:
         try:
             return name, fn()
-        except Exception as e:
+        except (KeyError, ValueError, TypeError, AttributeError) as e:
             logger.warning("并行任务 %s 失败: %s", name, e)
             return name, {"error": str(e)}
 
@@ -62,7 +62,7 @@ def run_parallel(tasks: dict[str, Callable[[], Any]],
         try:
             _, result = future.result()
             results[name] = result
-        except Exception as e:
+        except (KeyError, ValueError, TypeError, AttributeError) as e:
             results[name] = {"error": str(e)}
 
         if len(results) == len(tasks):
@@ -99,7 +99,7 @@ def parallel_map(fn: Callable, items: list, max_workers: int = 4,
         if f in done:
             try:
                 results.append(f.result())
-            except Exception as e:
+            except (KeyError, ValueError, TypeError, AttributeError) as e:
                 results.append({"error": str(e)[:100]})
         else:
             f.cancel()

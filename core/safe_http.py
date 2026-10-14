@@ -47,7 +47,7 @@ def _parse_scheme(url: str) -> Optional[str]:
     """从 URL 提取 scheme，失败返回 None"""
     try:
         return url.split("://")[0].lower().strip()
-    except Exception:
+    except (KeyError, ValueError, TypeError, AttributeError):
         return None
 
 
@@ -62,7 +62,7 @@ def _extract_host(url: str) -> str:
         host = without_auth.split("/", 1)[0].split(":", 1)[0].strip()
         # Remove port brackets
         return host.strip("[]")
-    except Exception:
+    except (KeyError, ValueError, TypeError, AttributeError):
         return ""
 
 
@@ -155,7 +155,7 @@ def safe_urlopen(
     except urllib.error.URLError as e:
         logger.warning(f"[safe_http] URL error for {url}: {e.reason}")
         raise
-    except Exception as e:
+    except (KeyError, ValueError, TypeError, AttributeError) as e:
         logger.warning(f"[safe_http] Request error for {url}: {e}")
         raise
 
@@ -192,7 +192,7 @@ def safe_urlopen_legacy(url: str, timeout: float = 15.0, **kwargs) -> urllib.req
         ctx.verify_mode = ssl.CERT_REQUIRED
         try:
             return _urllib.urlopen(req, timeout=timeout, context=ctx)  # nosec B310 (scheme already validated)
-        except Exception as e:
+        except (KeyError, ValueError, TypeError, AttributeError) as e:
             logger.warning(f"[safe_http] Legacy urlopen error: {e}")
             raise
     else:

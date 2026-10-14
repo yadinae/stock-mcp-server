@@ -20,6 +20,10 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
+import httpx
+import urllib.error
+import socket
+import json
 
 logger = logging.getLogger("stock-mcp.funnel")
 _BAOSTOCK_DB = Path(__file__).parent.parent / "data" / "baostock_cache.db"
@@ -73,7 +77,7 @@ def _fetch_via_tv_screener(page_size: int = 5500) -> List[dict]:
         if stocks:
             logger.info("Fetched %d A-shares via TV Screener (with indicators)", len(stocks))
         return stocks
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError, ImportError) as e:
         logger.warning("TV Screener failed: %s", e)
         return []
 
@@ -132,7 +136,7 @@ def _fetch_via_tradingview(page_size: int = 5500) -> List[dict]:
 
         logger.info("Fetched %d A-shares via TradingView REST (total: %d)", len(stocks), total)
         return stocks
-    except Exception as e:
+    except (urllib.error.URLError, urllib.error.HTTPError, socket.timeout, json.JSONDecodeError) as e:
         logger.warning("TradingView REST failed: %s", e)
         return []
 
@@ -176,7 +180,7 @@ def _fetch_via_push2(page_size: int = 5000) -> List[dict]:
 
         logger.info("Fetched %d A-shares via push2 (total: %d)", len(stocks), data.get("total", 0))
         return stocks
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         logger.warning("push2 failed: %s", e)
         return []
 
@@ -204,7 +208,7 @@ def _fetch_via_baostock_cache() -> List[dict]:
 
         logger.info("Fetched %d A-shares from baostock cache", len(stocks))
         return stocks
-    except Exception as e:
+    except (sqlite3.Error, KeyError, ValueError, AttributeError) as e:
         logger.warning("baostock cache failed: %s", e)
         return []
 
@@ -606,7 +610,7 @@ def enrich_with_fund_flow(stocks: List[dict], max_stocks: int = 50) -> List[dict
                 if isinstance(recent_flow, list):
                     s["main_net_5d"] = sum(f.get("main_net", 0) for f in recent_flow[:5])
                 enriched += 1
-        except Exception as e:
+        except (httpx.HTTPError, httpx.RequestError, KeyError, ValueError) as e:
             logger.debug("Fund flow enrichment failed for %s: %s", code, e)
 
     logger.info("Enriched %d stocks with fund flow data", enriched)

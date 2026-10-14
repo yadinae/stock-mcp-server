@@ -46,7 +46,7 @@ def _load_index() -> dict:
         try:
             with open(path, "r", encoding="utf-8") as f:
                 return json.load(f)
-        except Exception:
+        except (KeyError, ValueError, TypeError, AttributeError):
             pass
     return {"version": 1, "documents": [], "updated_at": None}
 

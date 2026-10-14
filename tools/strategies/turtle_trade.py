@@ -61,7 +61,7 @@ class TurtleTradeStrategy(BaseStrategy):
                             (float(last["close"]) / float(last["high_20"]) - 1) * 100, 2
                         ),
                     })
-            except Exception as e:
+            except (KeyError, ValueError, TypeError, AttributeError) as e:
                 logger.warning(f"[{symbol}] TurtleTrade 计算失败: {e}")
                 continue
 

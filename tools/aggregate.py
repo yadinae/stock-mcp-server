@@ -32,7 +32,7 @@ def cache_warmup(codes: list = None) -> dict:
                 yahoo.get_realtime_quote(c)
                 yahoo.get_kline(c, 30)
             results.append({"code": c, "status": "cached"})
-        except Exception as e:
+        except (KeyError, ValueError, TypeError, AttributeError) as e:
             results.append({"code": c, "status": "error", "error": str(e)[:80]})
     return {
         "total": len(pool),
@@ -54,7 +54,7 @@ def market_overview() -> dict:
             q = tencent.get_realtime_quote(code)
             indices.append({"name": q.get("name") or name, "code": code,
                             "price": q.get("price"), "change_pct": q.get("change_pct")})
-        except Exception:
+        except (KeyError, ValueError, TypeError, AttributeError):
             pass
     results["indices"] = indices
 
@@ -66,7 +66,7 @@ def market_overview() -> dict:
             "top5": [{"name": r["industry"], "change_pct": r["avg_change_pct"]} for r in top[:5]],
             "bottom5": [{"name": r["industry"], "change_pct": r["avg_change_pct"]} for r in top[-5:]][::-1] if len(top) >= 5 else [],
         }
-    except Exception:
+    except (KeyError, ValueError, TypeError, AttributeError):
         results["sectors"] = {}
 
     # 美股三大指数
@@ -76,7 +76,7 @@ def market_overview() -> dict:
             q = yahoo.get_realtime_quote(code)
             us_indices.append({"name": q.get("name") or code, "code": code,
                                "price": q.get("price"), "change_pct": q.get("change_pct")})
-        except Exception:
+        except (KeyError, ValueError, TypeError, AttributeError):
             pass
     results["us_indices"] = us_indices
     return results
@@ -107,7 +107,7 @@ def market_regime() -> dict:
                 "above_ma20": current > ma20, "above_ma60": current > ma60,
                 "vol_ratio": round(today_vol / vol20, 2) if vol20 else 1,
             })
-        except Exception:
+        except (KeyError, ValueError, TypeError, AttributeError):
             continue
     results["indices"] = ma_data
 
@@ -138,7 +138,7 @@ def market_regime() -> dict:
             bull_score += 10
         if bot_avg < -2:
             bear_score += 10
-    except Exception:
+    except (KeyError, ValueError, TypeError, AttributeError):
         results["industry_breadth"] = None
 
     total = bull_score + bear_score
@@ -165,7 +165,7 @@ def sector_rotation() -> dict:
             "top_gainers": [{"name": r["industry"], "change_pct": r["avg_change_pct"]} for r in top[:5]],
             "top_losers": [{"name": r["industry"], "change_pct": r["avg_change_pct"]} for r in top[-5:]][::-1] if len(top) >= 5 else [],
         }
-    except Exception as e:
+    except (KeyError, ValueError, TypeError, AttributeError) as e:
         return {"error": f"获取板块数据失败: {e}"}
 
 
@@ -206,7 +206,7 @@ def stock_finder(strategy: str = "etf", max_results: int = 5, risk_tolerance: st
             score = max(20, min(95, round(score)))
             results.append({"code": code, "name": q.get("name") or name,
                             "price": price, "change_rate": change, "total_score": score})
-        except Exception:
+        except (KeyError, ValueError, TypeError, AttributeError):
             continue
     results.sort(key=lambda x: -x.get("total_score", 0))
     return {

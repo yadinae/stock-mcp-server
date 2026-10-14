@@ -373,7 +373,7 @@ def _detect_promotion_signals(code: str, name: str) -> list[dict]:
         from tools.news import search_news
         news = search_news(code, name)
         titles = [str(n.get("title") or "") for n in (news.get("news") or [])]
-    except Exception:
+    except (urllib.error.URLError, urllib.error.HTTPError, socket.timeout, json.JSONDecodeError):
         titles = []
 
     if not titles:
@@ -421,7 +421,7 @@ def check_trap_risk(code: str, name: str = "") -> dict[str, Any]:
     quote = {}
     try:
         quote = tencent.get_realtime_quote(c)
-    except Exception:
+    except (urllib.error.URLError, urllib.error.HTTPError, socket.timeout, json.JSONDecodeError):
         pass
     resolved_name = name or quote.get("name") or c
 
@@ -440,13 +440,13 @@ def check_trap_risk(code: str, name: str = "") -> dict[str, Any]:
             micro = _detect_microcap_trap(price, None)
             if micro:
                 all_signals.append(micro)
-    except Exception:
+    except (urllib.error.URLError, urllib.error.HTTPError, socket.timeout, json.JSONDecodeError):
         pass
 
     # 2. 新闻推广匹配（老师推荐/群推荐/翻倍/稳赚 等）
     try:
         all_signals.extend(_detect_promotion_signals(c, resolved_name))
-    except Exception:
+    except (urllib.error.URLError, urllib.error.HTTPError, socket.timeout, json.JSONDecodeError):
         pass
 
     # ── 评分（对齐 Gateway: severity low=1 medium=2 high=3，score += sev*10，cap 100）──
@@ -530,7 +530,7 @@ def dd_checklist(code: str, name: str = "",
     if fin is None:
         try:
             fin = em_market.fetch_financials(c)
-        except Exception:
+        except (urllib.error.URLError, urllib.error.HTTPError, socket.timeout, json.JSONDecodeError):
             fin = None
     has_fin = isinstance(fin, dict) and bool(fin.get("code")) and "error" not in fin
 
@@ -539,7 +539,7 @@ def dd_checklist(code: str, name: str = "",
     if trap is None:
         try:
             trap = check_trap_risk(c, name)
-        except Exception:
+        except (urllib.error.URLError, urllib.error.HTTPError, socket.timeout, json.JSONDecodeError):
             trap = None
     has_trap = isinstance(trap, dict) and bool(trap.get("risk_level"))
     trap_ok = has_trap and trap.get("risk_level") not in (None, "unknown")
@@ -549,7 +549,7 @@ def dd_checklist(code: str, name: str = "",
             quote = tencent.get_realtime_quote(c)
             from tools.st_risk import get_st_risk
             risk = get_st_risk(c, quote)
-        except Exception:
+        except (urllib.error.URLError, urllib.error.HTTPError, socket.timeout, json.JSONDecodeError):
             risk = None
     has_risk = isinstance(risk, dict)
     risk_is_st = bool((risk or {}).get("is_st"))
@@ -565,7 +565,7 @@ def dd_checklist(code: str, name: str = "",
     if not resolved_name:
         try:
             resolved_name = (fin or {}).get("name") or tencent.get_realtime_quote(c).get("name", c)
-        except Exception:
+        except (urllib.error.URLError, urllib.error.HTTPError, socket.timeout, json.JSONDecodeError):
             resolved_name = c
 
     # ── 5 工作流清单 ──
@@ -772,7 +772,7 @@ def analyze_lhb(code: str) -> dict[str, Any]:
             q = tencent.get_realtime_quote(c)
             if q.get("name"):
                 resolved_name = q["name"]
-        except Exception:
+        except (urllib.error.URLError, urllib.error.HTTPError, socket.timeout, json.JSONDecodeError):
             pass
 
     # 2. 上榜日期 → 最近 10 日

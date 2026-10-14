@@ -61,7 +61,7 @@ def _search_sina(query: str, results: list):
                         "url": url_found,
                         "source": "新浪财经",
                     })
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         logger.debug("Sina news search failed: %s", e)
 
 
@@ -84,7 +84,7 @@ def _search_baidu_news(query: str, results: list):
                     "url": url_found if url_found.startswith("http") else f"https://news.baidu.com{url_found}",
                     "source": "百度新闻",
                 })
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         logger.debug("Baidu news search failed: %s", e)
 
 

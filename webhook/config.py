@@ -149,7 +149,7 @@ def load_rules(path: str = "") -> AlertRules:
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
         return _dict_to_rules(data)
-    except Exception as e:
+    except (KeyError, ValueError, TypeError, AttributeError) as e:
         logger.error("加载告警规则失败: %s", e)
         return _default_rules()
 
@@ -162,7 +162,7 @@ def save_rules(rules: AlertRules, path: str = "") -> bool:
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
         return True
-    except Exception as e:
+    except (KeyError, ValueError, TypeError, AttributeError) as e:
         logger.error("保存告警规则失败: %s", e)
         return False
 

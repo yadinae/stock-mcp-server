@@ -18,6 +18,7 @@ import random
 import string
 from datetime import datetime, timezone
 from typing import Any
+import httpx
 
 logger = logging.getLogger("stock-mcp.tv_ws")
 
@@ -52,7 +53,7 @@ def _parse_tv_messages(raw: str) -> list[dict]:
             d = json.loads(json_str)
             if isinstance(d, dict):
                 msgs.append(d)
-        except Exception:
+        except (httpx.HTTPError, httpx.RequestError):
             pass
     return msgs
 
@@ -79,7 +80,7 @@ def _ws_connect():
     for _ in range(3):
         try:
             ws.recv()
-        except Exception:
+        except (httpx.HTTPError, httpx.RequestError):
             break
     return ws
 
@@ -100,7 +101,7 @@ def _ws_recv_all(ws, timeout: float = 8, max_rounds: int = 10) -> list[dict]:
                 consecutive_timeouts = 0
             else:
                 consecutive_timeouts += 1
-        except Exception:
+        except (httpx.HTTPError, httpx.RequestError):
             consecutive_timeouts += 1
         if consecutive_timeouts >= 1:
             break
@@ -145,7 +146,7 @@ def get_crypto_quote(symbol: str) -> dict[str, Any]:
 
         return {"symbol": sym, "error": "未获取到报价", "source": "tradingview_ws"}
 
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         return {"symbol": sym, "error": str(e), "source": "tradingview_ws"}
 
 
@@ -215,7 +216,7 @@ def get_crypto_kline(
             }
         return {"symbol": sym, "error": "未获取到 K 线数据", "source": "tradingview_ws"}
 
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         return {"symbol": sym, "error": str(e), "source": "tradingview_ws"}
 
 
@@ -225,5 +226,5 @@ def tv_ws_status() -> dict[str, Any]:
         ws = _ws_connect()
         ws.close()
         return {"status": "ok", "source": "tradingview_ws"}
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         return {"status": "error", "error": str(e), "source": "tradingview_ws"}

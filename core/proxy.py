@@ -59,7 +59,7 @@ def _is_enabled() -> bool:
             if data.get("username") and data.get("password"):
                 _enabled = True
                 return _enabled
-        except Exception:
+        except (KeyError, ValueError, TypeError, AttributeError):
             pass
 
     _enabled = False
@@ -125,7 +125,7 @@ def _load_from_file() -> list[dict]:
                 "city": p.get("city", "?"),
             })
         return proxies
-    except Exception:
+    except (KeyError, ValueError, TypeError, AttributeError):
         return []
 
 
@@ -150,7 +150,7 @@ def _fetch_from_api(api_key: str) -> list[dict]:
                     "city": p.get("city_name", "?"),
                 })
             return proxies
-    except Exception:
+    except (KeyError, ValueError, TypeError, AttributeError):
         return []
 
 

@@ -4,3 +4,25 @@ __pycache__/
 .venv
 venv/
 gateway/
+# 运行时数据
+data/*.log
+data/*.db
+data/sentiment.db
+data/signal_state.db
+data/baostock_cache.db
+data/funnel_run_*.log
+data/prompt_store.json
+data/snapshot_*.json
+
+# 备份与调试脚本
+data_sources/*.backup
+data_sources/global_stock.py.backup
+fix_*.py
+show_lines*.py
+find_except.py
+remove_dup*.py
+replace_except.py
+add_caching_decorators.py
+
+# 旧版报告
+webhook/.alerter_state.json

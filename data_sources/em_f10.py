@@ -9,6 +9,7 @@ import json
 import time
 import urllib.request
 import urllib.parse
+import httpx
 
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"
 DATACENTER_API = "https://datacenter-web.eastmoney.com/api/data/v1/get"
@@ -92,7 +93,7 @@ def get_company_profile(code: str) -> dict:
                 "circulating_shares": jbzl.get("FREE_SHARES") or 0,
                 "source": "eastmoney_emweb",
             }
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         pass
 
     # 方式 2: datacenter RPT_LICO_FN_CPD（部分字段）
@@ -126,7 +127,7 @@ def get_company_profile(code: str) -> dict:
                 "circulating_shares": item.get("CIRCULATING_SHARES") or 0,
                 "source": "eastmoney_f10",
             }
-    except Exception:
+    except (httpx.HTTPError, httpx.RequestError):
         pass
 
     return {"error": "公司资料获取失败（emweb + datacenter 均无数据）", "code": code}
@@ -151,7 +152,7 @@ def get_company_financials(code: str, periods: int = 8) -> dict:
         raw = _http_get(f"{DATACENTER_API}?{params}")
         data = json.loads(raw)
         records = (data.get("result") or {}).get("data") or []
-    except Exception:
+    except (httpx.HTTPError, httpx.RequestError):
         pass
 
     # 方式 2: emweb NewFinanceAnalysis
@@ -162,7 +163,7 @@ def get_company_financials(code: str, periods: int = 8) -> dict:
             data = json.loads(raw)
             em_data = data.get("data") or []
             records = em_data[:periods]
-        except Exception:
+        except (httpx.HTTPError, httpx.RequestError):
             pass
 
     if not records:
@@ -205,7 +206,7 @@ def get_top_shareholders(code: str) -> dict:
         raw = _http_get(f"{DATACENTER_API}?{params}")
         data = json.loads(raw)
         records = (data.get("result") or {}).get("data") or []
-    except Exception:
+    except (httpx.HTTPError, httpx.RequestError):
         pass
 
     # 方式 2: emweb ShareholderResearch
@@ -224,7 +225,7 @@ def get_top_shareholders(code: str) -> dict:
                 "HOLD_NUM_CHANGE": r.get("HOLD_NUM_CHANGE"),
                 "CHANGE_RATIO": r.get("CHANGE_RATIO"),
             } for r in sdgd]
-        except Exception:
+        except (httpx.HTTPError, httpx.RequestError):
             pass
 
     shareholders = []
@@ -275,7 +276,7 @@ def get_management_team(code: str) -> dict:
             add(jbzl.get("LEGAL_PERSON"), "法定代表人")
             add(jbzl.get("SECRETARY"), "董事会秘书")
             add(jbzl.get("INDEDIRECTORS"), "独立董事")
-    except Exception:
+    except (httpx.HTTPError, httpx.RequestError):
         pass
 
     return {
@@ -304,5 +305,5 @@ def get_xdxr_info(code: str) -> dict:
         data = json.loads(raw)
         records = (data.get("result") or {}).get("data") or []
         return {"code": code, "count": len(records), "records": records, "source": "eastmoney_f10"}
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         return {"error": str(e), "code": code}

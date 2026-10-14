@@ -11,6 +11,7 @@ import sqlite3
 import time
 import urllib.request
 import xml.etree.ElementTree as ET
+import httpx
 
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"
 DB_PATH = os.path.expanduser("~/.stock-mcp/intel.db")
@@ -168,7 +169,7 @@ def _is_recent(time_str: str, cutoff_ts: float) -> bool:
         # RFC 2822: "Mon, 30 Aug 2026 12:00:00 +0800"
         parsed = email.utils.parsedate_to_datetime(time_str)
         return parsed.timestamp() >= cutoff_ts
-    except Exception:
+    except (httpx.HTTPError, httpx.RequestError):
         pass
     # ISO 8601: "2026-08-30T12:00:00Z" or "2026-08-30T12:00:00+08:00"
     try:
@@ -178,7 +179,7 @@ def _is_recent(time_str: str, cutoff_ts: float) -> bool:
         if parsed.tzinfo is None:
             parsed = parsed.replace(tzinfo=timezone.utc)
         return parsed.timestamp() >= cutoff_ts
-    except Exception:
+    except (httpx.HTTPError, httpx.RequestError):
         pass
     # 无法解析时保留 (不误删)
     return True
@@ -193,7 +194,7 @@ def _fetch_sector(sector):
             raw = _fetch_url(src["url"])
             items = _parse_feed(raw, src["name"], sector["id"], src["url"])
             all_items.extend(items)
-        except Exception as e:
+        except (httpx.HTTPError, httpx.RequestError) as e:
             errors.append({"source": src["name"], "error": str(e)[:80]})
     # 去重 + 排序（按标题去重）
     seen = set()
@@ -328,7 +329,7 @@ def refresh_intel_cache():
         try:
             _fetch_sector(s)
             ok += 1
-        except Exception:
+        except (httpx.HTTPError, httpx.RequestError):
             fail += 1
     return {"refreshed": ok, "failed": fail, "total": len(sectors)}
 

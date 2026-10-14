@@ -156,7 +156,7 @@ def get_all_a_symbols() -> list[str]:
             if status == "1" and stock_type == "1":
                 symbols.append(code.split(".")[1])
         return symbols
-    except Exception as e:
+    except (KeyError, ValueError, TypeError, AttributeError) as e:
         logger.error(f"获取股票列表失败: {e}")
         return []
     finally:
@@ -227,7 +227,7 @@ def backfill_symbol(symbol: str, start_date: str = "2024-01-01") -> int:
         finally:
             wconn.close()
         return len(df)
-    except Exception as e:
+    except (KeyError, ValueError, TypeError, AttributeError) as e:
         logger.warning(f"[{symbol}] backfill 失败: {e}")
         return 0
     finally:

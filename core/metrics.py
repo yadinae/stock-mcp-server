@@ -57,7 +57,7 @@ class ToolMetrics:
                         "INSERT INTO tool_calls (tool_name, latency_ms, success, error_msg) VALUES (?, ?, ?, ?)",
                         (tool_name, latency_ms, 1 if success else 0, error[:200]),
                     )
-            except Exception as e:
+            except (KeyError, ValueError, TypeError, AttributeError) as e:
                 logger.warning("Failed to record metrics: %s", e)
 
     def summary(self, hours: int = 24) -> dict:
@@ -98,7 +98,7 @@ class ToolMetrics:
                         "avg_latency_ms": avg_latency,
                         "top_tools": top_tools,
                     }
-            except Exception as e:
+            except (KeyError, ValueError, TypeError, AttributeError) as e:
                 logger.warning("Failed to get metrics summary: %s", e)
                 return {"error": str(e)}
 
@@ -112,7 +112,7 @@ class ToolMetrics:
                         (days,),
                     ).rowcount
                     return {"deleted": deleted}
-            except Exception as e:
+            except (KeyError, ValueError, TypeError, AttributeError) as e:
                 return {"error": str(e)}
 
 

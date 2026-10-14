@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 
 from data_sources import binance as binance_source
+import httpx
 
 
 def register(mcp):
@@ -23,7 +24,7 @@ def register(mcp):
                 tv_result = tv_quote(symbol)
                 if not tv_result.get("error"):
                     return json.dumps(tv_result, ensure_ascii=False, default=str)
-            except Exception:
+            except (httpx.HTTPError, httpx.RequestError):
                 pass
         return json.dumps(result, ensure_ascii=False, default=str)
 
@@ -52,7 +53,7 @@ def register(mcp):
                 tv_result = tv_kline(symbol, timeframe=interval, count=limit)
                 if not tv_result.get("error"):
                     return json.dumps(tv_result, ensure_ascii=False, default=str)
-            except Exception:
+            except (httpx.HTTPError, httpx.RequestError):
                 pass
         return json.dumps(result, ensure_ascii=False, default=str)
 

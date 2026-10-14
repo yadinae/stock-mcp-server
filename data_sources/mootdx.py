@@ -100,7 +100,7 @@ def get_realtime_quote(code: str) -> Optional[dict[str, Any]]:
         cache.set(key, result, TTL_REALTIME)
         get_health_tracker().record_success("mootdx")
         return result
-    except Exception as e:
+    except (KeyError, ValueError, TypeError, AttributeError) as e:
         logger.warning("mootdx realtime error for %s: %s", code, e)
         get_health_tracker().record_failure("mootdx", str(e))
         return None
@@ -152,7 +152,7 @@ def batch_realtime(codes: list[str]) -> list[dict[str, Any]]:
                     key = make_cache_key("mootdx_realtime", raw_code)
                     cache.set(key, result, TTL_REALTIME)
                     results[raw_code] = result
-        except Exception as e:
+        except (KeyError, ValueError, TypeError, AttributeError) as e:
             logger.warning("mootdx batch realtime error: %s", e)
 
     return [results.get(c, {"code": c, "error": "数据不可用"}) for c in codes]
@@ -223,7 +223,7 @@ def get_kline(code: str, days: int = 60) -> Optional[dict[str, Any]]:
         get_health_tracker().record_failure("mootdx", "K线数据为空")
         return None
 
-    except Exception as e:
+    except (KeyError, ValueError, TypeError, AttributeError) as e:
         logger.warning("mootdx kline error for %s: %s", code, e)
         get_health_tracker().record_failure("mootdx", str(e))
         return None

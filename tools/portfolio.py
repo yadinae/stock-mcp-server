@@ -10,13 +10,14 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from data_sources import tencent
+import httpx
 
 
 def _get_quote(code: str) -> dict:
     """获取实时行情，兼容 A股/美股/港股"""
     try:
         return tencent.get_realtime_quote(code)
-    except Exception:
+    except (httpx.HTTPError, httpx.RequestError):
         return {}
 
 
@@ -26,7 +27,7 @@ def _get_kline(code: str, days: int = 60) -> list:
         d = tencent.get_kline(code, days)
         records = d.get("records") or []
         return [{"date": r.get("date"), "close": r.get("close")} for r in records]
-    except Exception:
+    except (httpx.HTTPError, httpx.RequestError):
         return []
 
 
@@ -45,7 +46,7 @@ def _industry_of(code: str) -> str:
         from data_sources.em_market import get_stock_boards
         b = get_stock_boards(code)
         return b.get("industry") or "未知"
-    except Exception:
+    except (httpx.HTTPError, httpx.RequestError):
         return "未知"
 
 
@@ -146,7 +147,7 @@ def portfolio_correlation(codes: list, days: int = 60) -> dict:
             else:
                 try:
                     corr = statistics.correlation(a[:m], b[:m])
-                except Exception:
+                except (httpx.HTTPError, httpx.RequestError):
                     corr = 0
             matrix.append({
                 "code_a": codes[i], "code_b": codes[j],

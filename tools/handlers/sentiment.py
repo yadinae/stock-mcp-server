@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 
 from core.sentiment import (
+import httpx
     store_daily_sentiment,
     get_daily_sentiment,
     get_sentiment_trend,
@@ -51,7 +52,7 @@ def register(mcp) -> None:
         if extra:
             try:
                 kwargs.update(json.loads(extra))
-            except Exception:
+            except (httpx.HTTPError, httpx.RequestError):
                 pass
         result = store_daily_sentiment(date=date or None, **kwargs)
         return json.dumps(result, ensure_ascii=False)
@@ -97,7 +98,7 @@ def register(mcp) -> None:
         """
         try:
             d = json.loads(data) if isinstance(data, str) else data
-        except Exception:
+        except (httpx.HTTPError, httpx.RequestError):
             d = {}
         result = store_stock_sentiment(date, code, **d)
         return json.dumps(result, ensure_ascii=False)

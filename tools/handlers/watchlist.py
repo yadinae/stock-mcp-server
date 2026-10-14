@@ -6,6 +6,7 @@ import json
 
 from core import store as local_store
 from core.helpers import _safe_quote
+import httpx
 
 
 def register(mcp) -> None:
@@ -29,7 +30,7 @@ def register(mcp) -> None:
         """
         try:
             s = json.loads(symbols) if isinstance(symbols, str) and symbols.strip().startswith("[") else symbols
-        except Exception:
+        except (httpx.HTTPError, httpx.RequestError):
             s = symbols
         return json.dumps(local_store.watchlist_add(watchlist_id, s), ensure_ascii=False, default=str)
 

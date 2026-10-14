@@ -17,6 +17,7 @@ from core.portfolio_pool import (
     calculate_coverage,
 )
 from core.compression import compress_dict_result
+import httpx
 
 
 def _analyze_stock(task: StockTask) -> dict:
@@ -38,7 +39,7 @@ def _analyze_stock(task: StockTask) -> dict:
             "change_pct": q.get("change_pct"),
             "volume": q.get("volume"),
         }
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         result["quote"] = {"code": code, "error": str(e)}
 
     # 2. 板块 + 叙事归一化
@@ -48,7 +49,7 @@ def _analyze_stock(task: StockTask) -> dict:
         result["narratives"] = boards.get("narratives", [])
         result["industry"] = boards.get("industry", "未知")
         result["concept_count"] = boards.get("total", 0)
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         result["narratives"] = []
         result["industry"] = "未知"
         result["error_narratives"] = str(e)
@@ -72,7 +73,7 @@ def _analyze_stock(task: StockTask) -> dict:
                     "above_ma20": latest > ma20,
                     "trend": "多头" if ma5 > ma20 else ("空头" if ma5 < ma20 else "震荡"),
                 }
-    except Exception:
+    except (httpx.HTTPError, httpx.RequestError):
         pass  # 技术分析非必须
 
     # 4. 浮动盈亏
@@ -91,7 +92,7 @@ def _analyze_stock(task: StockTask) -> dict:
                 "pl": round(pl, 2),
                 "pl_pct": pl_pct,
             }
-        except Exception:
+        except (httpx.HTTPError, httpx.RequestError):
             pass
 
     return result
@@ -116,7 +117,7 @@ def register(mcp) -> None:
         """
         try:
             h = json.loads(holdings) if isinstance(holdings, str) else holdings
-        except Exception:
+        except (httpx.HTTPError, httpx.RequestError):
             return json.dumps({"error": "holdings 必须是合法 JSON"}, ensure_ascii=False)
 
         if not h or not isinstance(h, list):

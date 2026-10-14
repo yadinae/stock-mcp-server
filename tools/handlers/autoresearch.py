@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Optional
 
 from tools.handlers.prompt_store import PromptStore, DEFAULT_PROMPTS
+import httpx
 
 try:
     from tools.handlers.debate import agnes_llm_call
@@ -161,7 +162,7 @@ class AutoresearchEngine:
             )
             if improved and len(improved.strip()) > 50:
                 return improved.strip()
-        except Exception as e:
+        except (httpx.HTTPError, httpx.RequestError) as e:
             print(f"  ⚠️ LLM 改进生成失败: {e}")
         return None
 
@@ -184,7 +185,7 @@ class AutoresearchEngine:
                     bear = result.get("steps", {}).get("bear", "")
                     score = self._evaluate_debate(bull, bear)
                     scores.append(score)
-                except Exception as e:
+                except (httpx.HTTPError, httpx.RequestError) as e:
                     print(f"  ⚠️ 测试 {code} 失败: {e}")
         finally:
             # 恢复原版本（或保留新版本，由调用方决定）

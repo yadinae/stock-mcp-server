@@ -62,7 +62,7 @@ class RpsBreakoutStrategy(BaseStrategy):
 
                 # 当前价
                 last_prices[symbol] = float(close_arr[-1])
-            except Exception:
+            except (KeyError, ValueError, TypeError, AttributeError):
                 continue
 
         if not pct_changes:

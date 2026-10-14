@@ -11,6 +11,7 @@ import json
 import time
 import urllib.request
 import urllib.parse
+import httpx
 
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"
 
@@ -63,7 +64,7 @@ def get_fund_flow_120d(code: str, days: int = 120):
         if start < 0 or end < start:
             return {"code": code, "total_days": 0, "total_main_net_yi": 0, "flow": [], "error": "解析失败"}
         data = json.loads(raw[start:end + 1])
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         return {"code": code, "total_days": 0, "total_main_net_yi": 0, "flow": [], "error": str(e)[:120]}
 
     flow = []
@@ -105,7 +106,7 @@ def _push2_get_with_retry(url: str, timeout: float = 10.0, attempts: int = 3) ->
             })
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 return json.loads(resp.read().decode("utf-8", "replace"))
-        except Exception as e:
+        except (httpx.HTTPError, httpx.RequestError) as e:
             last_err = e
             if i < attempts - 1:
                 time.sleep(delays[i])
@@ -122,7 +123,7 @@ def get_fund_flow_minute(code: str):
            f"&fields2=f51,f52,f53,f54,f55,f56,f57")
     try:
         d = _push2_get_with_retry(url)
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         return {
             "code": code, "points": 0, "total_main_net_wan": 0, "flow": [],
             "error": f"push2 限流不可达（数据中心IP风控）: {type(e).__name__}", "retryable": True,
@@ -170,7 +171,7 @@ def get_concept_fund_flow(top_n: int = 20, sort_by: str = "net_inflow"):
         req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "application/json"})
         with urllib.request.urlopen(req, timeout=12) as resp:
             d = json.loads(resp.read().decode("utf-8", "replace"))
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         return {"type": "concept", "records": [], "count": 0, "sorted_by": sort_by, "error": str(e)[:120]}
 
     rank_list = (d or {}).get("data", {}).get("rank_list") or []

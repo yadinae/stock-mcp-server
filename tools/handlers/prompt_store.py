@@ -122,7 +122,7 @@ class PromptStore:
         if self.path.exists():
             try:
                 return json.loads(self.path.read_text())
-            except Exception:
+            except (httpx.HTTPError, httpx.RequestError):
                 return {"prompts": {}, "run_log": []}
         return {"prompts": {}, "run_log": []}
 

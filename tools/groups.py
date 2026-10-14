@@ -135,10 +135,10 @@ TOOL_GROUPS: dict[str, dict] = {
         ],
     },
     "市场数据": {
-        "description": "大宗交易、股东户数、分红送转、板块归属",
+        "description": "大宗交易、股东户数、分红送转、板块归属、交易日检测",
         "tools": [
             "get_block_trade", "get_holder_change",
-            "get_dividend_history", "get_stock_boards",
+            "get_dividend_history", "get_stock_boards", "is_trading_day",
         ],
     },
     "系统": {

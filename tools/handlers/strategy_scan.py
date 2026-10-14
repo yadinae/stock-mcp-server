@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import logging
 import time
+import httpx
 
 logger = logging.getLogger("stock-mcp.strategy_scan")
 
@@ -103,7 +104,7 @@ def register(mcp):
                     "stocks": result.selected[:20],  # 限制返回数量
                 }
                 total_selected += result.select_count
-            except Exception as e:
+            except (httpx.HTTPError, httpx.RequestError) as e:
                 results[name] = {"error": str(e)[:200]}
 
         elapsed = round(time.time() - t0, 1)

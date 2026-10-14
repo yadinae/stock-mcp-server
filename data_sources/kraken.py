@@ -7,6 +7,7 @@ Kraken 公开 API 无需 key，本地实测 200 ✅。
 import json
 import urllib.request
 import urllib.parse
+import httpx
 
 KRAKEN_BASE = "https://api.kraken.com"
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"
@@ -69,7 +70,7 @@ def get_crypto_quote(symbol: str) -> dict:
             "volume": float(info.get("v", ["0"])[0]),
             "source": "kraken",
         }
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         return {"symbol": symbol, "error": f"Kraken 接口异常: {e}"}
 
 
@@ -112,7 +113,7 @@ def get_crypto_kline(symbol: str, interval: str = "1d", limit: int = 60) -> dict
                 "volume": float(r[6]),
             })
         return {"symbol": symbol, "pair": pair, "interval": interval, "count": len(records), "records": records}
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         return {"symbol": symbol, "error": f"Kraken 接口异常: {e}"}
 
 
@@ -139,7 +140,7 @@ def get_top_crypto(sort_by: str = "volume", limit: int = 10) -> dict:
                 "volume_24h": vol,
                 "source": "kraken",
             })
-        except Exception:
+        except (httpx.HTTPError, httpx.RequestError):
             continue
     if sort_by == "volume":
         quotes.sort(key=lambda x: -x.get("volume_24h", 0))

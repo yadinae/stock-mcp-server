@@ -13,6 +13,7 @@ import json
 import time
 import urllib.request
 import urllib.parse
+import httpx
 
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"
 DATACENTER_API = "https://datacenter-web.eastmoney.com/api/data/v1/get"
@@ -51,7 +52,7 @@ def _datacenter(report_name: str, filter_str: str, page_size: int = 50,
         raw = _http_get(url, referer="https://data.eastmoney.com/")
         data = json.loads(raw)
         return (data.get("result") or {}).get("data") or []
-    except Exception:
+    except (httpx.HTTPError, httpx.RequestError):
         return []
 
 
@@ -145,7 +146,7 @@ def get_announcements(code: str, page_size: int = 30) -> dict:
             "url": f"https://static.cninfo.com.cn/{a.get('adjunctUrl') or ''}" if a.get("adjunctUrl") else "",
         } for a in announcements[:page_size]]
         return {"code": code, "total": len(items), "announcements": items}
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         return {"code": code, "error": str(e), "announcements": []}
 
 
@@ -181,7 +182,7 @@ def get_stock_boards(code: str) -> dict:
             "total": len(ssbk),
             "source": "emweb_f10",
         }
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         return {"code": c, "error": f"emweb 板块获取失败: {e}", "source": "emweb_f10"}
 
 
@@ -223,7 +224,7 @@ def get_industry_rank_tv(top_n: int = 20) -> dict:
         } for k, v in agg.items()]
         industries.sort(key=lambda x: -x["avg_change_pct"])
         return {"source": "tradingview_rest", "total": len(industries), "top": industries[:top_n]}
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         return {"source": "tradingview_rest", "error": str(e), "top": []}
 
 
@@ -255,7 +256,7 @@ def get_tv_market_list(top_n: int = 100) -> dict:
                 "industry": str(v[6] or ""), "market_cap": float(v[7] or 0),
             })
         return {"source": "tradingview_rest", "stocks": stocks}
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         return {"source": "tradingview_rest", "error": str(e), "stocks": []}
 
 
@@ -287,7 +288,7 @@ def get_tv_quote(code: str) -> dict:
             "close": float(v[2] or 0), "change_pct": float(v[3] or 0),
             "industry": str(v[6] or ""), "market_cap": float(v[7] or 0),
         }
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         return {"source": "tradingview_rest", "error": str(e), "code": code}
 
 
@@ -321,7 +322,7 @@ def get_market_hot_stocks(date_str: str = "") -> dict:
                 "turnover_rate": it.get("huanshou") or "",
             })
         return {"date": date_str, "total": len(stocks), "stocks": stocks[:50]}
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         return {"date": date_str, "error": str(e), "stocks": []}
 
 
@@ -366,7 +367,7 @@ def get_limitup_tiers() -> dict:
                 else:
                     break
             return days, is_board
-        except Exception:
+        except (httpx.HTTPError, httpx.RequestError):
             return 1, True
 
     # 1. 当日涨停股（东财 datacenter）
@@ -381,7 +382,7 @@ def get_limitup_tiers() -> dict:
         raw = _http_get(url, referer="https://data.eastmoney.com/", timeout=15)
         data = json.loads(raw)
         rows = (data.get("result") or {}).get("data") or []
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         return {"success": False, "error": f"涨停采集失败: {e}", "tiers": {}, "market_summary": {}}
 
     if not rows:
@@ -485,7 +486,7 @@ def get_wallstreetcn_news(limit: int = 10, mode: str = "all") -> dict:
                          "content": it.get("content_text") or "", "author": (it.get("author") or {}).get("display_name", ""),
                          "url": f"https:{it['uri']}" if it.get("uri") else None}
                         for it in items]}
-            except Exception:
+            except (httpx.HTTPError, httpx.RequestError):
                 pass
         if mode in ("all", "hot"):
             try:
@@ -496,7 +497,7 @@ def get_wallstreetcn_news(limit: int = 10, mode: str = "all") -> dict:
                         {"title": it.get("title", ""), "date": time.strftime("%Y-%m-%d", time.localtime(it.get("display_time") or 0)),
                          "views": it.get("pageviews") or 0, "url": it.get("uri", "")}
                         for it in items]}
-            except Exception:
+            except (httpx.HTTPError, httpx.RequestError):
                 pass
         if mode in ("all", "articles"):
             try:
@@ -509,7 +510,7 @@ def get_wallstreetcn_news(limit: int = 10, mode: str = "all") -> dict:
                          "date": time.strftime("%Y-%m-%d", time.localtime(it.get("display_time") or 0)),
                          "url": it.get("uri", "")}
                         for it in items]}
-            except Exception:
+            except (httpx.HTTPError, httpx.RequestError):
                 pass
         result["summary"] = {
             "total_items": len(result.get("live_news", {}).get("items", [])) +
@@ -519,7 +520,7 @@ def get_wallstreetcn_news(limit: int = 10, mode: str = "all") -> dict:
             "hot_count": len(result.get("hot_articles", {}).get("items", [])),
             "article_count": len(result.get("latest_articles", {}).get("items", [])),
         }
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         return {"success": False, "source": "华尔街见闻", "error": f"获取失败: {e}", "fetch_time": result["fetch_time"]}
     return result
 
@@ -543,7 +544,7 @@ def get_industry_fund_flow(top_n: int = 20) -> dict:
         } for r in rows]
         records.sort(key=lambda x: x["net_inflow"], reverse=True)
         return {"type": "industry", "records": records[:n], "count": len(records), "sorted_by": "net_inflow"}
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         return {"type": "industry", "records": [], "count": 0, "sorted_by": "net_inflow",
                 "error": f"板块资金流接口异常: {e}"}
 
@@ -588,7 +589,7 @@ def get_convertible_bonds(page_size: int = 20) -> dict:
             "list_date": r.get("PUBLIC_START_DATE") or "",
         } for r in rows[:size]]
         return {"total": len(bonds), "bonds": bonds}
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         return {"error": f"可转债接口异常: {e}", "bonds": []}
 
 

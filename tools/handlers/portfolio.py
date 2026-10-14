@@ -12,6 +12,7 @@ from tools.portfolio import (
     portfolio_signal,
 )
 from core.compression import compress_dict_result
+import httpx
 
 
 def register(mcp) -> None:
@@ -24,7 +25,7 @@ def register(mcp) -> None:
         """
         try:
             h = json.loads(holdings) if isinstance(holdings, str) else holdings
-        except Exception:
+        except (httpx.HTTPError, httpx.RequestError):
             return json.dumps({"error": "holdings 必须是合法 JSON"}, ensure_ascii=False)
         return compress_dict_result(portfolio_risk_diagnosis(h))
 
@@ -38,7 +39,7 @@ def register(mcp) -> None:
         """
         try:
             c = json.loads(codes) if isinstance(codes, str) and codes.strip().startswith("[") else [x.strip() for x in codes.replace("，", ",").split(",") if x.strip()]
-        except Exception:
+        except (httpx.HTTPError, httpx.RequestError):
             c = [x.strip() for x in codes.replace("，", ",").split(",") if x.strip()]
         return json.dumps(portfolio_correlation(c, days), ensure_ascii=False, default=str)
 
@@ -52,7 +53,7 @@ def register(mcp) -> None:
         """
         try:
             h = json.loads(holdings) if isinstance(holdings, str) else holdings
-        except Exception:
+        except (httpx.HTTPError, httpx.RequestError):
             return json.dumps({"error": "holdings 必须是合法 JSON"}, ensure_ascii=False)
         return compress_dict_result(portfolio_full_report(h, days))
 
@@ -66,7 +67,7 @@ def register(mcp) -> None:
         """
         try:
             h = json.loads(holdings) if isinstance(holdings, str) else holdings
-        except Exception:
+        except (httpx.HTTPError, httpx.RequestError):
             return json.dumps({"error": "holdings 必须是合法 JSON"}, ensure_ascii=False)
         return json.dumps(portfolio_rebalance(h, max_single_weight), ensure_ascii=False, default=str)
 
@@ -79,6 +80,6 @@ def register(mcp) -> None:
         """
         try:
             h = json.loads(holdings) if isinstance(holdings, str) else holdings
-        except Exception:
+        except (httpx.HTTPError, httpx.RequestError):
             return json.dumps({"error": "holdings 必须是合法 JSON"}, ensure_ascii=False)
         return json.dumps(portfolio_signal(h), ensure_ascii=False, default=str)

@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 from typing import Optional
+import httpx
 
 
 # ─── 核心叙事规则 ──────────────────────────────────────────────
@@ -416,5 +417,5 @@ def boards_with_narratives(code: str) -> dict:
         from data_sources.em_market import get_stock_boards
         boards = get_stock_boards(code)
         return enhance_stock_boards(boards)
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         return {"code": code, "error": str(e), "narratives": []}

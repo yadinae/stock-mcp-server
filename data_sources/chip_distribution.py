@@ -116,7 +116,7 @@ def calculate_chip_distribution(
         with urllib.request.urlopen(req, timeout=8) as resp:
             meta = json.loads(resp.read().decode("utf-8"))
             name = meta.get("data", {}).get("name", "")
-    except Exception:
+    except (KeyError, ValueError, TypeError, AttributeError):
         pass
 
     current_price = klines[-1]["close"]

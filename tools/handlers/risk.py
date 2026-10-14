@@ -4,6 +4,7 @@ import json
 from tools.advanced2_lhb import check_trap_risk, dd_checklist
 from tools.advanced2_hot import analyze_policy
 from data_sources import em_market
+import httpx
 
 
 def register(mcp):
@@ -63,7 +64,7 @@ def register(mcp):
             result["steps"].append({"step": "行情", "name": q.get("name", code),
                                     "price": q.get("price"),
                                     "change_pct": q.get("change_pct")})
-        except Exception as e:
+        except (httpx.HTTPError, httpx.RequestError) as e:
             result["steps"].append({"step": "行情", "error": str(e)[:80]})
 
         try:
@@ -72,7 +73,7 @@ def register(mcp):
                                     "revenue_yi": round((fin.get("revenue") or 0) / 1e8, 1),
                                     "net_profit_yi": round((fin.get("net_profit") or 0) / 1e8, 1),
                                     "net_margin": fin.get("net_margin")})
-        except Exception as e:
+        except (httpx.HTTPError, httpx.RequestError) as e:
             result["steps"].append({"step": "财务", "error": str(e)[:80]})
 
         try:
@@ -80,7 +81,7 @@ def register(mcp):
             result["steps"].append({"step": "估值",
                                     "intrinsic": d.get("intrinsic_per_share"),
                                     "safety_margin_pct": d.get("safety_margin_pct")})
-        except Exception as e:
+        except (httpx.HTTPError, httpx.RequestError) as e:
             result["steps"].append({"step": "估值", "error": str(e)[:80]})
 
         try:
@@ -88,7 +89,7 @@ def register(mcp):
             result["steps"].append({"step": "风险",
                                     "risk_level": t.get("risk_level"),
                                     "signals": len(t.get("signals") or [])})
-        except Exception as e:
+        except (httpx.HTTPError, httpx.RequestError) as e:
             result["steps"].append({"step": "风险", "error": str(e)[:80]})
 
         try:
@@ -96,7 +97,7 @@ def register(mcp):
             result["steps"].append({"step": "资金博弈",
                                     "risk_level": hm.get("risk_level"),
                                     "lhb_trend": hm.get("lhb_summary", {}).get("trend")})
-        except Exception as e:
+        except (httpx.HTTPError, httpx.RequestError) as e:
             result["steps"].append({"step": "资金博弈", "error": str(e)[:80]})
 
         risks = [s.get("risk_level") for s in result["steps"] if s.get("risk_level") == "高"]

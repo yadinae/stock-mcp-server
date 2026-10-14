@@ -98,7 +98,7 @@ def _safe_quote(code: str) -> dict:
             "change_pct": q.get("change_pct") or 0,
             "source": q.get("source") or "",
         }
-    except Exception:
+    except (KeyError, ValueError, TypeError, AttributeError):
         return {"code": code, "name": code, "price": 0, "change_pct": 0}
 
 

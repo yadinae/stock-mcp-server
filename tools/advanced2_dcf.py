@@ -511,7 +511,7 @@ def ic_memo(code: str) -> dict:
         if "error" in dcf:
             dcf_err = dcf["error"]
             dcf = None
-    except Exception as e:
+    except (KeyError, ValueError, TypeError, AttributeError) as e:
         dcf_err = str(e)[:120]
         dcf = None
 

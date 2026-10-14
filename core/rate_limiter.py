@@ -146,7 +146,7 @@ class RateLimiterRegistry:
                 with self._limiters[row["source"]]._lock:
                     self._limiters[row["source"]]._day_count = row["day_count"] or 0
             conn.close()
-        except Exception:
+        except (KeyError, ValueError, TypeError, AttributeError):
             pass  # 首次运行或 DB 不存在，从空状态开始
 
     def _save_to_db(self) -> None:
@@ -162,7 +162,7 @@ class RateLimiterRegistry:
                     )
             conn.commit()
             conn.close()
-        except Exception:
+        except (KeyError, ValueError, TypeError, AttributeError):
             pass  # 持久化失败不影响功能
 
     def _default_max_for(self, source: str) -> int:

@@ -33,7 +33,7 @@ T = TypeVar("T")
 def _socket_timeout_s() -> float:
     try:
         return max(1.0, float(os.environ.get("STOCK_MCP_SOCKET_TIMEOUT", "15")))
-    except Exception:
+    except (ValueError, TypeError):
         return 15.0
 
 _socket_applied = False
@@ -47,7 +47,7 @@ def ensure_socket_timeout():
     try:
         socket.setdefaulttimeout(t)
         _socket_applied = True
-    except Exception:
+    except (OSError, ValueError):
         pass
 
 # Apply at import time
@@ -60,14 +60,14 @@ def _retry_delays() -> tuple[float, ...]:
     raw = os.environ.get("STOCK_MCP_RETRY_DELAYS", "1.0,3.0")
     try:
         return tuple(float(x) for x in raw.split(",") if x.strip())
-    except Exception:
+    except (ValueError, TypeError):
         return (1.0, 3.0)
 
 
 def _retry_jitter() -> float:
     try:
         return max(0.0, min(1.0, float(os.environ.get("STOCK_MCP_RETRY_JITTER", "0.2"))))
-    except Exception:
+    except (ValueError, TypeError):
         return 0.2
 
 
@@ -105,7 +105,7 @@ def retry_with_backoff(
     for attempt in range(max_retries + 1):
         try:
             return fn(*args, **kwargs)
-        except Exception as e:
+        except Exception as e:  # Intentional: retry on any exception
             last_exc = e
 
             # 检查是否可重试
@@ -124,14 +124,14 @@ def retry_with_backoff(
 def _cache_ttl_s() -> float:
     try:
         return float(os.environ.get("STOCK_MCP_CACHE_TTL", "60"))
-    except Exception:
+    except (ValueError, TypeError):
         return 60.0
 
 
 def _stale_ttl_s() -> float:
     try:
         return max(0.0, float(os.environ.get("STOCK_MCP_STALE_TTL", "21600")))
-    except Exception:
+    except (ValueError, TypeError):
         return 21600.0
 
 
@@ -192,7 +192,7 @@ _last_failure_ts: float = 0.0
 def _failure_cooldown_s() -> float:
     try:
         return max(0.0, float(os.environ.get("STOCK_MCP_FAILURE_COOLDOWN", "10")))
-    except Exception:
+    except (ValueError, TypeError):
         return 10.0
 
 
@@ -256,7 +256,7 @@ def resilient_request(
             if cache_key:
                 cache.set(cache_key, result)
             return result
-        except Exception as e:
+        except Exception as e:  # Intentional: retry on any exception
             last_exc = e
             if attempt < max_retries:
                 delays = _retry_delays()

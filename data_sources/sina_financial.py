@@ -7,6 +7,7 @@
 import json
 import urllib.request
 import urllib.parse
+import httpx
 
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"
 SINA_API = "https://quotes.sina.cn/cn/api/openapi.php/CompanyFinanceService.getFinanceReport2022"
@@ -41,7 +42,7 @@ def get_sina_financial_report(code: str, report_type: str = "lrb", periods: int 
         req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "application/json"})
         with urllib.request.urlopen(req, timeout=15) as resp:
             d = json.loads(resp.read().decode("utf-8", "replace"))
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         return {
             "code": code, "reportType": report_type,
             "reportName": REPORT_NAMES.get(report_type, ""),

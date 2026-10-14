@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 
 from tools.narrative import (
+import httpx
     normalize_concepts,
     rank_narratives,
     enhance_stock_boards,
@@ -25,7 +26,7 @@ def register(mcp) -> None:
         """
         try:
             c = json.loads(concepts) if isinstance(concepts, str) else concepts
-        except Exception:
+        except (httpx.HTTPError, httpx.RequestError):
             c = [x.strip() for x in concepts.replace("，", ",").split(",") if x.strip()]
         result = rank_narratives(c)
         return json.dumps({"narratives": result, "total": len(result)}, ensure_ascii=False)
@@ -40,7 +41,7 @@ def register(mcp) -> None:
         """
         try:
             c = json.loads(concepts) if isinstance(concepts, str) else concepts
-        except Exception:
+        except (httpx.HTTPError, httpx.RequestError):
             c = [x.strip() for x in concepts.replace("，", ",").split(",") if x.strip()]
         result = rank_narratives(c, min_score=min_score)
         return json.dumps({"narratives": result, "total": len(result)}, ensure_ascii=False)
@@ -64,7 +65,7 @@ def register(mcp) -> None:
         """
         try:
             s = json.loads(stocks) if isinstance(stocks, str) else stocks
-        except Exception:
+        except (httpx.HTTPError, httpx.RequestError):
             return json.dumps({"error": "stocks 必须是合法 JSON"}, ensure_ascii=False)
         result = cross_stock_narratives(s)
         return json.dumps(result, ensure_ascii=False, default=str)

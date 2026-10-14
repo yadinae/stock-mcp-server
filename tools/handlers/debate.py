@@ -21,6 +21,8 @@ from typing import Optional
 
 from core.llm_agnes import agnes_llm_call
 from core.parallel import run_parallel
+from core import cost_guard
+import httpx
 
 logger = logging.getLogger("stock-mcp.debate")
 
@@ -29,7 +31,7 @@ try:
     from tools.handlers.prompt_store import PromptStore
     _prompt_store = PromptStore()
     _USE_PROMPT_STORE = True
-except Exception:
+except (httpx.HTTPError, httpx.RequestError):
     _prompt_store = None
     _USE_PROMPT_STORE = False
 
@@ -75,7 +77,7 @@ def _build_fact_dossier(code: str, stock_name: str = "") -> dict:
     if records:
         try:
             technical = analyze_technical(records, code)
-        except Exception as e:
+        except (httpx.HTTPError, httpx.RequestError) as e:
             technical = {"error": str(e)}
 
     # 补充数据 (串行, 避免限流)
@@ -92,7 +94,7 @@ def _build_fact_dossier(code: str, stock_name: str = "") -> dict:
     ]:
         try:
             extra[tool_name] = fn()
-        except Exception as e:
+        except (httpx.HTTPError, httpx.RequestError) as e:
             extra[tool_name] = {"error": str(e)}
 
     # 组装底稿
@@ -143,7 +145,7 @@ def _summarize_kline(records: list) -> dict:
             "avg_volume": int(sum(volumes) / len(volumes)) if volumes else 0,
             "data_points": len(records),
         }
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         return {"error": str(e)}
 
 
@@ -271,7 +273,7 @@ def _get_prompt(role: str, fallback: str) -> str:
     if _USE_PROMPT_STORE and _prompt_store:
         try:
             return _prompt_store.get_prompt(role)
-        except Exception:
+        except (httpx.HTTPError, httpx.RequestError):
             pass
     return fallback
 
@@ -298,7 +300,7 @@ def _record辩论_scores(code: str, bull: str, bear: str, moderator: str, reflec
             "moderator": {"score": mod_score},
             "reflection": {"score": ref_score},
         })
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         logger.warning("Failed to record debate scores: %s", e)
 
 
@@ -450,7 +452,7 @@ def _run_debate(
             temperature=0.4,
         )
         result["steps"]["bull"] = bull_analysis
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         logger.error("Bull researcher failed: %s", e)
         bull_analysis = f"[多方研究员调用失败: {e}]"
         result["steps"]["bull"] = bull_analysis
@@ -468,7 +470,7 @@ def _run_debate(
             temperature=0.4,
         )
         result["steps"]["bear"] = bear_analysis
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         logger.error("Bear researcher failed: %s", e)
         bear_analysis = f"[空方研究员调用失败: {e}]"
         result["steps"]["bear"] = bear_analysis
@@ -489,7 +491,7 @@ def _run_debate(
                 temperature=0.3,
             )
             result["steps"]["cross_examination"] = cross_examination
-        except Exception as e:
+        except (httpx.HTTPError, httpx.RequestError) as e:
             logger.error("Cross-examination failed: %s", e)
             cross_examination = f"[交叉反驳调用失败: {e}]"
             result["steps"]["cross_examination"] = cross_examination
@@ -509,7 +511,7 @@ def _run_debate(
             temperature=0.3,
         )
         result["steps"]["moderator"] = moderator
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         logger.error("Moderator failed: %s", e)
         moderator = f"[中立主持调用失败: {e}]"
         result["steps"]["moderator"] = moderator
@@ -553,7 +555,7 @@ def _run_reflection(analysis_text: str) -> dict:
         result = _parse_llm_json(response)
         result["input_length"] = len(analysis_text)
         return result
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         logger.error("Reflection audit failed: %s", e)
         return {
             "error": str(e),
@@ -578,7 +580,7 @@ def register(mcp):
         事实底稿(13项数据, 不经LLM) → 多方研究员 → 空方研究员 → 交叉反驳 → 中立主持
 
         Args:
-            code: 股票代码。A股示例: 600519  美股示例: AAPL  港股示例: 00700
+            code: 股票代码。A股示例: 600519  美股示例: AAPL  港股示例: 0700.HK
             name: 股票名称(可选)
             rounds: 交叉反驳轮数(0=各自陈述不交叉, 1=加一轮交叉反驳, 默认1)
 
@@ -599,6 +601,11 @@ def register(mcp):
         err = _validate_code(code)
         if err:
             return _error_response(code, err)
+
+        # medium 修复：per-client 日调用限额（防 token 泄露后 LLM 费用失控）
+        allowed, msg = cost_guard.check_cost("debate_multiagent", client_id=code)
+        if not allowed:
+            return _error_response(code, msg)
 
         stock_name = name or _get_stock_info(code).get("name", "")
         rounds = max(0, min(rounds, 2))  # 限制0-2轮

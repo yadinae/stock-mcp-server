@@ -56,7 +56,7 @@ class MaVolumeStrategy(BaseStrategy):
                         "ma20": round(float(last["ma20"]), 2),
                         "volume_ratio": round(float(last["volume"]) / float(last["vol_ma20"]), 2),
                     })
-            except Exception as e:
+            except (KeyError, ValueError, TypeError, AttributeError) as e:
                 logger.warning(f"[{symbol}] MaVolume 计算失败: {e}")
                 continue
 

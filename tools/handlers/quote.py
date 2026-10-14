@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Any
 
 from core.helpers import (
+import httpx
     _validate_code,
     _validate_days,
     _error_response,
@@ -131,7 +132,7 @@ def register(mcp):
                 result = global_quote(code)
             result["code"] = code
             return json.dumps(result, ensure_ascii=False, default=str)
-        except Exception as e:
+        except (httpx.HTTPError, httpx.RequestError) as e:
             return json.dumps({"error": str(e), "code": code}, ensure_ascii=False)
 
     @mcp.tool(name="get_global_kline")
@@ -179,7 +180,7 @@ def register(mcp):
                 "records": records,
                 "count": len(records),
             }, ensure_ascii=False, default=str)
-        except Exception as e:
+        except (httpx.HTTPError, httpx.RequestError) as e:
             return json.dumps({"error": str(e), "code": code}, ensure_ascii=False)
 
     @mcp.tool(name="get_tv_quote")
@@ -222,10 +223,10 @@ def register(mcp):
         records = kline_data.get("records", []) if isinstance(kline_data, dict) else []
         if records:
             try: result["technical"] = analyze_technical(records, code)
-            except Exception as e: result["technical"] = {"error": str(e)}
+            except (httpx.HTTPError, httpx.RequestError) as e: result["technical"] = {"error": str(e)}
         try:
             stock_name = _get_stock_info(code).get("name", "")
             result["news"] = search_news(code, stock_name)
-        except Exception as e: result["news"] = {"error": str(e)}
+        except (httpx.HTTPError, httpx.RequestError) as e: result["news"] = {"error": str(e)}
         result["time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         return json.dumps(result, ensure_ascii=False, default=str)

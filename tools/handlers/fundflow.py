@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import httpx
 
 
 def register(mcp):
@@ -69,7 +70,7 @@ def register(mcp):
                 "records": data,
                 "count": len(data),
             }, ensure_ascii=False, default=str)
-        except Exception as e:
+        except (httpx.HTTPError, httpx.RequestError) as e:
             return json.dumps({"error": str(e), "code": code}, ensure_ascii=False)
 
     @mcp.tool(name="get_margin_trading")

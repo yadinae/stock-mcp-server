@@ -90,7 +90,7 @@ def _fetch_tx_realtime(codes: list[str]) -> list[dict[str, Any]]:
         result = _parse_tx_response(resp.text)
         health.record_success("tencent")
         return result
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         logger.warning("Tencent API error: %s", e)
         health.record_failure("tencent", str(e))
         return []
@@ -170,7 +170,7 @@ def get_realtime_quote(code: str) -> dict[str, Any]:
         if md_result is not None and "error" not in md_result:
             cache.set(key, md_result, TTL_REALTIME)
             return md_result
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         logger.debug("mootdx fallback failed: %s", e)
 
     result = {"code": code, "error": "无法获取A股行情"}
@@ -265,7 +265,7 @@ def get_kline(code: str, days: int = 60) -> dict[str, Any]:
             return result
         else:
             health.record_failure("tencent", "K线数据为空")
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         logger.warning("Tencent kline error: %s", e)
         health.record_failure("tencent", str(e))
 
@@ -277,7 +277,7 @@ def get_kline(code: str, days: int = 60) -> dict[str, Any]:
             md_result["source"] = "mootdx"
             cache.set(key, md_result, TTL_KLINE)
             return md_result
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         logger.debug("mootdx kline fallback failed: %s", e)
 
     result = {

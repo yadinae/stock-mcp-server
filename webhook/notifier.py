@@ -90,7 +90,7 @@ def send_feishu_webhook(
                 result.get("msg"),
             )
             return False
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         logger.error("飞书 Webhook 请求异常: %s", e)
         return False
 
@@ -123,7 +123,7 @@ def _get_feishu_tenant_token(app_id: str, app_secret: str) -> Optional[str]:
             return token
         logger.error("获取飞书 token 失败: %s", data)
         return None
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         logger.error("获取飞书 token 异常: %s", e)
         return None
 
@@ -193,7 +193,7 @@ def send_feishu_app(
         else:
             logger.error("飞书 App 发送失败: %s", data)
             return False
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         logger.error("飞书 App 发送异常: %s", e)
         return False
 
@@ -248,7 +248,7 @@ def send_telegram(
         else:
             logger.error("Telegram 发送失败: %s", data)
             return False
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         logger.error("Telegram 发送异常: %s", e)
         return False
 

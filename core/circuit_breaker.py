@@ -278,7 +278,7 @@ def with_circuit_breaker(
                 result = fn(*args, **kwargs)
                 cb_record_success(source_name)
                 return result
-            except Exception:
+            except (KeyError, ValueError, TypeError, AttributeError):
                 cb_record_failure(source_name)
                 raise
         wrapper.__name__ = fn.__name__

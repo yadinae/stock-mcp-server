@@ -15,6 +15,7 @@ import urllib.request
 import urllib.parse
 from datetime import datetime
 from typing import Any
+import httpx
 
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"
 DATACENTER_API = "https://datacenter-web.eastmoney.com/api/data/v1/get"
@@ -44,7 +45,7 @@ def _datacenter(report_name: str, columns: str, page_size: int = 12,
         result = data.get("result")
         if result and result.get("data"):
             return result["data"]
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         return [{"error": str(e)}]
     return []
 

@@ -33,7 +33,7 @@ def auto_register(mcp) -> None:
         full_name = f"{package_name}.{modname}"
         try:
             module = importlib.import_module(full_name)
-        except Exception as e:
+        except (KeyError, ValueError, TypeError, AttributeError) as e:
             logger.error("Failed to import handler module %s: %s", full_name, e)
             continue
 
@@ -46,7 +46,7 @@ def auto_register(mcp) -> None:
             register_fn(mcp)
             registered += 1
             logger.info("Registered handler: %s", modname)
-        except Exception as e:
+        except (KeyError, ValueError, TypeError, AttributeError) as e:
             logger.error("Failed to register handler %s: %s", modname, e)
 
     logger.info("Auto-registered %d handler modules", registered)

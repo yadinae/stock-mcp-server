@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
+import httpx
 
 
 def register(mcp):
@@ -28,7 +29,7 @@ def register(mcp):
         """
         try:
             h = json.loads(holdings) if isinstance(holdings, str) else holdings
-        except Exception:
+        except (httpx.HTTPError, httpx.RequestError):
             return json.dumps({"error": "holdings 必须是合法 JSON"}, ensure_ascii=False)
 
         if not h:
@@ -71,7 +72,7 @@ def register(mcp):
                         entry["reasons"].append(f"技术评分偏低({score})")
                     elif score > 80:
                         entry["reasons"].append(f"技术评分优秀({score})")
-            except Exception:
+            except (httpx.HTTPError, httpx.RequestError):
                 pass
 
             # Check P&L
@@ -185,10 +186,10 @@ def register(mcp):
                                 "intensity": "medium",
                                 "detail": f"主力净{'流入' if main_net > 0 else '流出'} {main_net/10000:.0f}万",
                             })
-                except Exception:
+                except (httpx.HTTPError, httpx.RequestError):
                     pass
 
-            except Exception as e:
+            except (httpx.HTTPError, httpx.RequestError) as e:
                 # Skip failed checks
                 pass
 

@@ -12,6 +12,7 @@
 """
 import json
 import urllib.request
+import httpx
 
 BINANCE_API = "https://api.binance.com"
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"
@@ -66,12 +67,12 @@ def get_crypto_quote(symbol: str) -> dict:
             "quote_volume": float(d.get("quoteVolume") or 0),
             "source": "binance",
         }
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         # Binance 失败 → Kraken 兜底
         try:
             from data_sources import kraken
             return kraken.get_crypto_quote(symbol)
-        except Exception:
+        except (httpx.HTTPError, httpx.RequestError):
             return {"symbol": symbol, "error": f"Binance/Kraken 均失败: {e}"}
 
 
@@ -107,11 +108,11 @@ def get_crypto_kline(symbol: str, interval: str = "1d", limit: int = 60) -> dict
             "volume": float(r[5]),
         } for r in rows]
         return {"symbol": symbol, "pair": s, "interval": iv, "count": len(records), "records": records, "source": "binance"}
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         try:
             from data_sources import kraken
             return kraken.get_crypto_kline(symbol, interval, limit)
-        except Exception:
+        except (httpx.HTTPError, httpx.RequestError):
             return {"symbol": symbol, "error": f"Binance/Kraken 均失败: {e}"}
 
 
@@ -142,9 +143,9 @@ def get_top_crypto(sort_by: str = "volume", limit: int = 10) -> dict:
         else:
             quotes.sort(key=lambda x: -x.get("change_pct", 0))
         return {"quotes": quotes[:limit], "count": len(quotes[:limit]), "source": "binance"}
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         try:
             from data_sources import kraken
             return kraken.get_top_crypto(sort_by, limit)
-        except Exception:
+        except (httpx.HTTPError, httpx.RequestError):
             return {"error": f"Binance/Kraken 均失败: {e}", "quotes": []}

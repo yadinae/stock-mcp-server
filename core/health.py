@@ -174,7 +174,7 @@ def probe_all_sources() -> list[dict]:
                     "latency_ms": elapsed_ms,
                     "sample": text[:80],
                 })
-        except Exception as e:
+        except (KeyError, ValueError, TypeError, AttributeError) as e:
             elapsed_ms = round((time.time() - start) * 1000)
             results.append({
                 "name": name, "status": "error",

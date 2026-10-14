@@ -132,7 +132,7 @@ class AIAuditor:
             try:
                 decision = self._audit_one(candidate)
                 decisions.append(decision)
-            except Exception as e:
+            except (KeyError, ValueError, TypeError, AttributeError) as e:
                 logger.error("Audit failed for %s: %s", candidate.get("code"), e)
                 decisions.append(AuditDecision(
                     code=candidate.get("code", "?"),

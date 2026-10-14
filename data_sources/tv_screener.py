@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 from typing import List, Optional
+import httpx
 
 logger = logging.getLogger("stock-mcp.tv_screener")
 
@@ -144,7 +145,7 @@ def fetch_a_shares(
         )
         return stocks
 
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         logger.warning("TV Screener failed: %s", e)
         return []
 
@@ -225,7 +226,7 @@ def scan_with_filter(
         logger.info("TV Screener scan: %d results (total: %d)", len(stocks), total)
         return stocks
 
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         logger.warning("TV Screener scan failed: %s", e)
         return []
 

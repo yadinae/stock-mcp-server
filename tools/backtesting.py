@@ -32,7 +32,7 @@ def fetch_ohlcv(symbol: str, period: str = "2y", interval: str = "1d") -> list[d
         from core.proxy import proxy_request
         raw = proxy_request(url, headers={"Accept": "application/json"}, timeout=15)
         data = json.loads(raw)
-    except Exception:
+    except (KeyError, ValueError, TypeError, AttributeError):
         # Fallback: direct
         req = urllib.request.Request(url, headers={"User-Agent": _UA})
         with urllib.request.urlopen(req, timeout=15) as resp:
@@ -479,7 +479,7 @@ def run_backtest(
 
     try:
         candles = fetch_ohlcv(symbol, period, interval)
-    except Exception as e:
+    except (KeyError, ValueError, TypeError, AttributeError) as e:
         return {"error": f"数据获取失败: {e}"}
 
     if len(candles) < 30:
@@ -574,7 +574,7 @@ def walk_forward_backtest(
 
     try:
         candles = fetch_ohlcv(symbol, period, interval)
-    except Exception as e:
+    except (KeyError, ValueError, TypeError, AttributeError) as e:
         return {"error": f"数据获取失败: {e}"}
 
     min_bars = max(60, n_splits * 20)

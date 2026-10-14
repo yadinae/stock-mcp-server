@@ -28,6 +28,7 @@ from webhook.config import (
     DEFAULT_STATE_PATH,
 )
 from webhook.notifier import send_notification
+import httpx
 from webhook.rules import (
     AlertResult,
     evaluate_all,
@@ -110,7 +111,7 @@ def fetch_realtime(code: str) -> dict[str, Any]:
             "volume_ratio": _safe_float(fields[39]) if len(fields) > 39 else None,
             "source": "tencent",
         }
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         logger.error("获取实时行情失败 %s: %s", code, e)
         return {"code": code, "error": str(e)}
 
@@ -141,7 +142,7 @@ def fetch_kline(code: str, days: int = 120) -> list[dict[str, Any]]:
                 })
             return records
         return []
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         logger.error("获取 K 线失败 %s: %s", code, e)
         return []
 
@@ -352,7 +353,7 @@ def _load_state(path: str = "") -> dict:
         if os.path.exists(path):
             with open(path, "r") as f:
                 return json.load(f)
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         logger.warning("加载告警状态失败: %s", e)
     return {}
 
@@ -363,7 +364,7 @@ def _save_state(state: dict, path: str = ""):
     try:
         with open(path, "w") as f:
             json.dump(state, f, ensure_ascii=False, indent=2)
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         logger.warning("保存告警状态失败: %s", e)
 
 
@@ -477,7 +478,7 @@ def run_alert_check(
                 _mark_alert_sent(alert_key, state)
                 all_alerts.add(alert)
 
-        except Exception as e:
+        except (httpx.HTTPError, httpx.RequestError) as e:
             stats["errors"] += 1
             logger.error("检查 %s 异常: %s", code, e)
 
@@ -512,7 +513,7 @@ def run_alert_check(
                 _mark_alert_sent(alert_key, state)
                 all_alerts.add(alert)
 
-        except Exception as e:
+        except (httpx.HTTPError, httpx.RequestError) as e:
             logger.error("检查 ETF %s 异常: %s", code, e)
 
     # ── 发送通知 ──

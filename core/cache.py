@@ -27,6 +27,40 @@ TTL_NEWS = 600          # 新闻：10分钟
 TTL_AI_ANALYSIS = 0     # AI 分析：不缓存（每次可能不同）
 
 
+def cached(ttl_seconds: int = 60, max_size: int = 10000):
+    """
+    TTL 缓存装饰器
+    
+    用法:
+        @cached(ttl_seconds=60)
+        def get_quote(code: str) -> dict:
+            ...
+    
+    Args:
+        ttl_seconds: 缓存有效期（秒）
+        max_size: 缓存最大条目数
+    """
+    cache = TTLCache(default_ttl=ttl_seconds, max_size=max_size)
+    
+    def decorator(func: Callable) -> Callable:
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            # 生成缓存键
+            key = f"{func.__module__}.{func.__name__}:{str(args)}:{str(sorted(kwargs.items()))}"
+            
+            # 尝试从缓存获取
+            cached_result = cache.get(key)
+            if cached_result is not None:
+                return cached_result
+            
+            # 计算结果并缓存
+            result = func(*args, **kwargs)
+            cache.set(key, result, ttl_seconds)
+            return result
+        return wrapper
+    return decorator
+
+
 class TTLCache:
     """线程安全的 TTL 缓存（带 max_size LRU 上限，防内存无界增长）"""
 

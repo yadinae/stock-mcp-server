@@ -14,6 +14,7 @@ import yfinance as yf
 from core.cache import get_cache, make_cache_key
 from core.cache import TTL_REALTIME, TTL_KLINE, TTL_STOCK_INFO
 from core.health import get_health_tracker
+import httpx
 
 logger = logging.getLogger("stock-mcp.yahoo")
 
@@ -77,7 +78,7 @@ def get_realtime_quote(code: str) -> dict[str, Any] | None:
             return result
 
         get_health_tracker().record_failure("yahoo", "no data")
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         logger.warning("Yahoo Finance error for %s: %s", code, e)
 
     return None
@@ -128,7 +129,7 @@ def get_kline(code: str, days: int = 60) -> dict[str, Any]:
             return result
 
         get_health_tracker().record_failure("yahoo", "kline empty")
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         logger.warning("Yahoo kline error for %s: %s", code, e)
         get_health_tracker().record_failure("yahoo", str(e))
 

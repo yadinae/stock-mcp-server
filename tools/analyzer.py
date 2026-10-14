@@ -20,6 +20,7 @@ import time
 from typing import Any, Optional
 
 import yaml
+import httpx
 
 logger = logging.getLogger("stock-mcp.analyzer")
 
@@ -161,7 +162,7 @@ def _load_llm_config() -> tuple[str, str, str, Optional[str]]:
                 return p.get("base_url") or None, p["api_key"], model, None
 
         return None, "", model, "未找到可用的 LLM API Key"
-    except Exception:
+    except (httpx.HTTPError, httpx.RequestError):
         # P1 修复：不泄露绝对路径/异常细节（防信息泄露），详情仅记日志
         logger.exception("LLM 配置加载失败")
         return None, "", "", "LLM 配置缺失或不可读，请联系管理员检查 STOCK_MCP_LLM_CONFIG"
@@ -199,7 +200,7 @@ def _call_llm_with_retry(client, model: str, messages: list, timeout: int,
                 timeout=timeout,
             )
             return resp.choices[0].message.content or ""
-        except Exception as e:
+        except (httpx.HTTPError, httpx.RequestError) as e:
             last_error = e
             if attempt < max_retries:
                 wait = 2 ** attempt  # 1s, 2s
@@ -277,7 +278,7 @@ def analyze_stock(
         from openai import OpenAI
         timeout_seconds = int(os.environ.get("STOCK_LLM_TIMEOUT", "120"))
         client = OpenAI(base_url=base_url or None, api_key=api_key, timeout=timeout_seconds)
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         return {
             "code": stock_code, "success": False,
             "error": f"LLM 客户端初始化失败: {e}",
@@ -383,7 +384,7 @@ def analyze_stock(
             timeout=timeout_seconds,
             max_retries=2,
         )
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         logger.error("LLM 调用全部失败: %s", e)
         return {
             "code": stock_code, "success": False,

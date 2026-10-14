@@ -132,7 +132,7 @@ class Pipeline:
                     name, input_count, output_count,
                     result.stages[-1].duration_ms,
                 )
-            except Exception as e:
+            except (KeyError, ValueError, TypeError, AttributeError) as e:
                 logger.error("[%s] FAILED: %s", name, e, exc_info=True)
                 result.stages.append(StageResult(
                     name=name,

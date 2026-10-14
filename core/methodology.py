@@ -160,7 +160,7 @@ def add_batch(documents: list[dict]) -> dict:
                 duplicates += 1
             else:
                 errors += 1
-        except Exception:
+        except (KeyError, ValueError, TypeError, AttributeError):
             errors += 1
     return {"total": len(documents), "saved": saved, "duplicates": duplicates, "errors": errors}
 
@@ -255,7 +255,7 @@ def search(
             # 解析 tags
             try:
                 d["tags"] = json.loads(d.get("tags") or "[]")
-            except Exception:
+            except (KeyError, ValueError, TypeError, AttributeError):
                 d["tags"] = []
             # 截断 content
             if "content" in d:
@@ -278,7 +278,7 @@ def get_document(doc_id: int) -> Optional[dict]:
     d = dict(row)
     try:
         d["tags"] = json.loads(d.get("tags") or "[]")
-    except Exception:
+    except (KeyError, ValueError, TypeError, AttributeError):
         d["tags"] = []
     return d
 
@@ -353,7 +353,7 @@ def list_documents(
         d = dict(row)
         try:
             d["tags"] = json.loads(d.get("tags") or "[]")
-        except Exception:
+        except (KeyError, ValueError, TypeError, AttributeError):
             d["tags"] = []
         result.append(d)
     return result

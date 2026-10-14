@@ -49,7 +49,7 @@ def search_tradingview_market(query: str = "", filter_type: str = ""):
             })
         if items:
             return {"query": query, "total": len(items), "results": items}
-    except Exception:
+    except (urllib.error.URLError, urllib.error.HTTPError, socket.timeout, json.JSONDecodeError, KeyError, ValueError, TypeError):
         pass
 
     # 兜底: 东财 suggest
@@ -65,7 +65,7 @@ def search_tradingview_market(query: str = "", filter_type: str = ""):
             "description": r.get("Classify", ""), "close": None, "change_pct": None,
         } for r in rows]
         return {"query": query, "total": len(items), "results": items, "source": "eastmoney_suggest"}
-    except Exception as e:
+    except (urllib.error.URLError, urllib.error.HTTPError, socket.timeout, json.JSONDecodeError, KeyError, ValueError, TypeError) as e:
         return {"query": query, "total": 0, "results": [], "error": str(e)[:120]}
 
 
@@ -120,7 +120,7 @@ def technical_batch_scan(codes: str = "", days: int = 90, filter_str: str = "",
             }
             cache.set(cache_key, result, TTL_TECHNICAL)
             return result
-        except Exception as e:
+        except (urllib.error.URLError, urllib.error.HTTPError, socket.timeout, json.JSONDecodeError, KeyError, ValueError, TypeError) as e:
             return {"code": code, "name": code, "error": str(e)[:100]}
 
     # 并发执行
@@ -162,14 +162,14 @@ def technical_batch_scan(codes: str = "", days: int = 90, filter_str: str = "",
                 if ok:
                     filtered.append(r)
             results = filtered
-        except Exception as e:
+        except (urllib.error.URLError, urllib.error.HTTPError, socket.timeout, json.JSONDecodeError, KeyError, ValueError, TypeError) as e:
             return {"error": f"筛选参数解析失败: {e}", "results": results}
 
     if "limit" in filter_str:
         try:
             n = int(filter_str.split("limit=")[1].split(",")[0])
             results = results[:n]
-        except Exception:
+        except (urllib.error.URLError, urllib.error.HTTPError, socket.timeout, json.JSONDecodeError, KeyError, ValueError, TypeError):
             pass
 
     return {"total": len(results), "results": results}
@@ -204,13 +204,13 @@ def strategy_scan(strategy: str = ""):
                     "turnover": t.get("turnover", 0),
                     "volume_ratio": t.get("volume_ratio", 0),
                 })
-    except Exception:
+    except (urllib.error.URLError, urllib.error.HTTPError, socket.timeout, json.JSONDecodeError, KeyError, ValueError, TypeError):
         tiers = []
     hot = []
     try:
         hot_data = em_market.get_market_hot_stocks()
         hot = hot_data.get("stocks") or []
-    except Exception:
+    except (urllib.error.URLError, urllib.error.HTTPError, socket.timeout, json.JSONDecodeError, KeyError, ValueError, TypeError):
         hot = []
     tier_names = {t.get("code", ""): t.get("name", "") for t in tiers}
 
@@ -248,7 +248,7 @@ def strategy_scan(strategy: str = ""):
                     rsi = tech.get("rsi", {}).get("value")
                     if rsi is not None and rsi < 30:
                         out.append({"code": t.get("code"), "name": t.get("name"), "rsi": rsi})
-                except Exception:
+                except (urllib.error.URLError, urllib.error.HTTPError, socket.timeout, json.JSONDecodeError, KeyError, ValueError, TypeError):
                     continue
         elif id_ == "ma_bullish":
             for t in tiers[:15]:
@@ -259,7 +259,7 @@ def strategy_scan(strategy: str = ""):
                     if "多头" in status:
                         out.append({"code": t.get("code"), "name": t.get("name"),
                                     "trend": status, "score": tech.get("score")})
-                except Exception:
+                except (urllib.error.URLError, urllib.error.HTTPError, socket.timeout, json.JSONDecodeError, KeyError, ValueError, TypeError):
                     continue
         # 名称补全
         for x in out:
@@ -295,7 +295,7 @@ def stock_score(code: str):
 
     try:
         quote = tencent.get_realtime_quote(code)
-    except Exception as e:
+    except (urllib.error.URLError, urllib.error.HTTPError, socket.timeout, json.JSONDecodeError, KeyError, ValueError, TypeError) as e:
         return {"code": code, "error": f"行情获取失败: {e}", "score": 0}
     if not quote:
         return {"code": code, "error": "无行情数据", "score": 0}
@@ -305,7 +305,7 @@ def stock_score(code: str):
     try:
         kline = tencent.get_kline(code, days=120)
         tech = analyze_technical(kline.get("records", []), code)
-    except Exception:
+    except (urllib.error.URLError, urllib.error.HTTPError, socket.timeout, json.JSONDecodeError, KeyError, ValueError, TypeError):
         tech = {}
 
     # 资金流
@@ -313,7 +313,7 @@ def stock_score(code: str):
     try:
         from data_sources.em_fundflow import get_fund_flow_120d
         fund_flow = get_fund_flow_120d(code, days=20)
-    except Exception:
+    except (urllib.error.URLError, urllib.error.HTTPError, socket.timeout, json.JSONDecodeError, KeyError, ValueError, TypeError):
         fund_flow = None
 
     # 使用因子框架计算评分
@@ -335,7 +335,7 @@ def stock_signals(code: str):
     result = {"code": code, "signals": signals, "summary": "中性", "bullish_count": 0, "bearish_count": 0}
     try:
         quote = tencent.get_realtime_quote(code)
-    except Exception:
+    except (urllib.error.URLError, urllib.error.HTTPError, socket.timeout, json.JSONDecodeError, KeyError, ValueError, TypeError):
         quote = {}
     result["name"] = quote.get("name", code)
 
@@ -359,7 +359,7 @@ def stock_signals(code: str):
                 signals.append({"factor": "rsi", "signal": "bullish", "detail": f"RSI={rsi:.1f} 超卖"})
             elif rsi > 70:
                 signals.append({"factor": "rsi", "signal": "bearish", "detail": f"RSI={rsi:.1f} 超买"})
-    except Exception:
+    except (urllib.error.URLError, urllib.error.HTTPError, socket.timeout, json.JSONDecodeError, KeyError, ValueError, TypeError):
         pass
 
     # 资金信号
@@ -375,7 +375,7 @@ def stock_signals(code: str):
             else:
                 signals.append({"factor": "fund_flow", "signal": "bearish",
                                 "detail": f"主力净流出{abs(main_net)/1e8:.2f}亿"})
-    except Exception:
+    except (urllib.error.URLError, urllib.error.HTTPError, socket.timeout, json.JSONDecodeError, KeyError, ValueError, TypeError):
         pass
 
     # 量价信号
@@ -388,7 +388,7 @@ def stock_signals(code: str):
         elif quote_pct < -3 and volume_ratio > 1.5:
             signals.append({"factor": "volume_price", "signal": "bearish",
                             "detail": f"放量下跌 {quote_pct:.1f}% 量比{volume_ratio:.1f}"})
-    except Exception:
+    except (urllib.error.URLError, urllib.error.HTTPError, socket.timeout, json.JSONDecodeError, KeyError, ValueError, TypeError):
         pass
 
     bull = sum(1 for s in signals if s["signal"] == "bullish")
@@ -419,9 +419,9 @@ def tdx_test():
             result["last_price"] = float(df.iloc[0].get("price", 0))
         try:
             client.close()
-        except Exception:
+        except (urllib.error.URLError, urllib.error.HTTPError, socket.timeout, json.JSONDecodeError, KeyError, ValueError, TypeError):
             pass
-    except Exception as e:
+    except (urllib.error.URLError, urllib.error.HTTPError, socket.timeout, json.JSONDecodeError, KeyError, ValueError, TypeError) as e:
         result["tests"].append({"name": "mootdx", "ok": False, "error": str(e)[:150]})
 
     # 腾讯行情兜底（数据中心 IP 下 TDX TCP 常被拒，腾讯 API 是可靠替代）
@@ -432,7 +432,7 @@ def tdx_test():
             result["tests"].append({"name": "tencent_fallback(600519)", "ok": True,
                                     "price": q.get("price"), "stock_name": q.get("name")})
             result["ok"] = result["ok"] or True
-    except Exception as e:
+    except (urllib.error.URLError, urllib.error.HTTPError, socket.timeout, json.JSONDecodeError, KeyError, ValueError, TypeError) as e:
         result["tests"].append({"name": "tencent_fallback", "ok": False, "error": str(e)[:150]})
 
     # 汇总

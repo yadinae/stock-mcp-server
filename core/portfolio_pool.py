@@ -87,7 +87,7 @@ def _analyze_single_stock(
         result.error = f"分析超时（{timeout_s}s）"
         result.duration_ms = int((time.monotonic() - start) * 1000)
         return result
-    except Exception as e:
+    except (KeyError, ValueError, TypeError, AttributeError) as e:
         result.status = "failed"
         result.error = f"{type(e).__name__}: {e}"
         result.duration_ms = int((time.monotonic() - start) * 1000)
@@ -167,7 +167,7 @@ def run_portfolio_inspection(
             task = futures[future]
             try:
                 result = future.result(timeout=timeout_s + 5)
-            except Exception as e:
+            except (KeyError, ValueError, TypeError, AttributeError) as e:
                 result = StockResult(
                     code=task.code, weight=task.weight,
                     status="failed", error=f"执行异常: {e}",
@@ -183,7 +183,7 @@ def run_portfolio_inspection(
             if on_progress:
                 try:
                     on_progress(report)
-                except Exception:
+                except (KeyError, ValueError, TypeError, AttributeError):
                     pass  # 进度回调不应阻塞主流程
 
     # 聚合阶段

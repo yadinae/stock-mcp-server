@@ -1,0 +1,1 @@
+pandas==3.0.6\nhttpx==0.28.1\nnumpy==2.4.6\nbaostock==0.9.4

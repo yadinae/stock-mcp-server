@@ -7,6 +7,7 @@ import json
 import urllib.request
 import urllib.parse
 import re
+import httpx
 
 UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"
 
@@ -46,7 +47,7 @@ def fund_info(code: str) -> dict:
             "risk_level": info.get("risk_level") or "",
             "source": "danjuanapp.com",
         }
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         return {"code": c, "error": f"蛋卷基金接口异常: {e}"}
 
 
@@ -84,7 +85,7 @@ def fund_detail(code: str) -> dict:
             "managers": managers,
             "source": "danjuanapp.com",
         }
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         return {"code": c, "error": f"蛋卷基金接口异常: {e}"}
 
 
@@ -102,7 +103,7 @@ def fund_nav_history(code: str, page: int = 1, size: int = 30) -> dict:
             "percent": it.get("percent") or "",
         } for it in items]
         return {"code": c, "page": page, "total": len(navs), "items": navs}
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         return {"code": c, "error": f"蛋卷基金接口异常: {e}"}
 
 
@@ -124,7 +125,7 @@ def fund_growth(code: str, day: str = "ty") -> dict:
             "percentage": it.get("percentage") or it.get("percent") or "",
         } for it in items]
         return {"code": c, "day": day, "total": len(points), "items": points[:200]}
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         return {"code": c, "error": f"蛋卷基金接口异常: {e}"}
 
 
@@ -151,7 +152,7 @@ def fund_asset(code: str) -> dict:
             } for s in stocks[:10]],
             "source": "danjuanapp.com",
         }
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         return {"code": c, "error": f"蛋卷基金接口异常: {e}"}
 
 
@@ -173,7 +174,7 @@ def fund_manager(code: str) -> dict:
             "tenure_return": m.get("tenure_return") or m.get("return") or "",
         } for m in managers]
         return {"code": c, "total": len(mlist), "managers": mlist}
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         return {"code": c, "error": f"蛋卷基金接口异常: {e}"}
 
 
@@ -204,7 +205,7 @@ def index_basic_info(code: str) -> dict:
             "description": (info.get("indexCnDesc") or "")[:300],
             "source": "csindex.com.cn",
         }
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         return {"code": c, "error": f"中证指数接口异常: {e}"}
 
 
@@ -228,7 +229,7 @@ def index_details(code: str) -> dict:
             "valuation_file": pick("指数估值"),
             "source": "csindex.com.cn",
         }
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         return {"code": c, "error": f"中证指数接口异常: {e}"}
 
 
@@ -268,5 +269,5 @@ def index_perf(code: str, days: int = 30) -> dict:
             "items": points,
             "source": "csindex.com.cn",
         }
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         return {"code": c, "error": f"中证指数接口异常: {e}"}

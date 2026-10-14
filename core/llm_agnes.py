@@ -113,7 +113,7 @@ def agnes_llm_call(
                 continue
             logger.error("Agnes API HTTP error: %s", e)
             raise
-        except Exception as e:
+        except (httpx.HTTPError, httpx.RequestError) as e:
             last_err = e
             if attempt < 2:
                 logger.warning("Agnes API 异常 (%s)，重试...", str(e)[:50])
@@ -154,5 +154,5 @@ def test_agnes_connection() -> dict:
     try:
         result = agnes_llm_call("回复 OK 两个字", max_tokens=50)
         return {"status": "ok", "response": result}
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
         return {"status": "error", "error": str(e)}

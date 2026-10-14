@@ -26,6 +26,15 @@ HTTP_TIMEOUT = 15
 DATACENTER_URL = "https://datacenter-web.eastmoney.com/api/data/v1/get"
 SEC_HEADERS = {"User-Agent": "stock-mcp-server/1.0 (research; contact@stock-analysis.local)"}
 
+# ── TTL Cache + Health Tracker ───────────────────────────────
+from core.cache import TTLCache, cached, TTL_REALTIME, TTL_KLINE
+from core.health import DataSourceHealth, get_health_tracker
+
+# 缓存配置：1分钟有效期 + 1小时过期
+QUOTE_CACHE = TTLCache(default_ttl=60)
+QUOTE_STALE_CACHE = TTLCache(default_ttl=3600)  # 1小时陈旧缓存
+HEALTH = get_health_tracker()
+
 # ═══════════════════════════════════════════════════════════
 # 行情层
 # ═══════════════════════════════════════════════════════════
@@ -38,6 +47,7 @@ def us_quote_sina(ticker: str) -> dict[str, Any]:
     return {"error": "新浪美股行情受地域限制不可用，请使用 tencent 或 eastmoney 源"}
 
 
+@cached(ttl_seconds=TTL_REALTIME)
 def us_quote_tencent(ticker: str) -> dict[str, Any]:
     """腾讯美股行情 — 71 字段（含 PE/PB/市值/52周高低）
     
@@ -88,11 +98,18 @@ def us_quote_tencent(ticker: str) -> dict[str, Any]:
             "pb": _sf(55) if len(fields) > 55 else 0,
             "timestamp": fields[30],
         }
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
+        HEALTH.record_failure("us_quote_tencent")
         logger.error("腾讯美股行情失败 %s: %s", ticker, e)
+        return {"error": str(e)}
+    except Exception as e:
+        # Unexpected error
+        HEALTH.record_failure("us_quote_tencent")
+        logger.error("腾讯美股行情意外错误 %s: %s", ticker, e)
         return {"error": str(e)}
 
 
+@cached(ttl_seconds=TTL_REALTIME)
 def hk_quote_tencent(code: str) -> dict[str, Any]:
     """腾讯港股行情 — 78 字段（最全）
     
@@ -133,11 +150,18 @@ def hk_quote_tencent(code: str) -> dict[str, Any]:
             "market_cap": float(fields[44]) if fields[44] else 0,
             "timestamp": fields[30],
         }
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
+        HEALTH.record_failure("hk_quote_tencent")
         logger.error("腾讯港股行情失败 %s: %s", code, e)
+        return {"error": str(e)}
+    except Exception as e:
+        # Unexpected error
+        HEALTH.record_failure("hk_quote_tencent")
+        logger.error("腾讯港股行情意外错误 %s: %s", code, e)
         return {"error": str(e)}
 
 
+@cached(ttl_seconds=TTL_REALTIME)
 def hk_quote_sina(code: str) -> dict[str, Any]:
     """新浪港股行情 — 25 字段
     
@@ -172,11 +196,18 @@ def hk_quote_sina(code: str) -> dict[str, Any]:
             "volume": float(fields[12]) if fields[12] else 0,
             "amount": float(fields[11]) if fields[11] else 0,
         }
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
+        HEALTH.record_failure("hk_quote_sina")
         logger.error("新浪港股行情失败 %s: %s", code, e)
+        return {"error": str(e)}
+    except Exception as e:
+        # Unexpected error
+        HEALTH.record_failure("hk_quote_sina")
+        logger.error("新浪港股行情意外错误 %s: %s", code, e)
         return {"error": str(e)}
 
 
+@cached(ttl_seconds=TTL_REALTIME)
 def quote_eastmoney(secid: str) -> dict[str, Any]:
     """东财 push2 实时行情 — 美股+港股统一接口
     
@@ -216,8 +247,14 @@ def quote_eastmoney(secid: str) -> dict[str, Any]:
             "prev_close": _p("f60"),
             "change_pct": round(d["f170"] / 100, 2) if d.get("f170") is not None else None,
         }
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
+        HEALTH.record_failure("quote_eastmoney")
         logger.error("东财行情失败 %s: %s", secid, e)
+        return {"error": str(e)}
+    except Exception as e:
+        # Unexpected error
+        HEALTH.record_failure("quote_eastmoney")
+        logger.error("东财行情意外错误 %s: %s", secid, e)
         return {"error": str(e)}
 
 
@@ -259,6 +296,7 @@ def global_quote(code: str) -> dict[str, Any]:
 # K线层
 # ═══════════════════════════════════════════════════════════
 
+@cached(ttl_seconds=TTL_KLINE)
 def us_kline_sina(ticker: str, num: int = 120) -> list[dict[str, Any]]:
     """新浪美股日K线 — 可回溯到1984年
     
@@ -287,11 +325,18 @@ def us_kline_sina(ticker: str, num: int = 120) -> list[dict[str, Any]]:
             "close": float(item.get("c", 0)),
             "volume": int(item.get("v", 0)),
         } for item in items]
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
+        HEALTH.record_failure("us_kline_sina")
         logger.error("新浪美股K线失败 %s: %s", ticker, e)
+        return []
+    except Exception as e:
+        # Unexpected error
+        HEALTH.record_failure("us_kline_sina")
+        logger.error("新浪美股K线意外错误 %s: %s", ticker, e)
         return []
 
 
+@cached(ttl_seconds=TTL_KLINE)
 def kline_yahoo(symbol: str, interval: str = "1d",
                 range_: str = "6mo") -> list[dict[str, Any]]:
     """Yahoo Finance chart API — 美股+港股通用，零crumb
@@ -332,8 +377,14 @@ def kline_yahoo(symbol: str, interval: str = "1d",
                 "volume": int(quote["volume"][i]) if quote.get("volume") and quote["volume"][i] else 0,
             })
         return result
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
+        HEALTH.record_failure("kline_yahoo")
         logger.error("Yahoo K线失败 %s: %s", symbol, e)
+        return []
+    except Exception as e:
+        # Unexpected error
+        HEALTH.record_failure("kline_yahoo")
+        logger.error("Yahoo K线意外错误 %s: %s", symbol, e)
         return []
 
 
@@ -341,6 +392,7 @@ def kline_yahoo(symbol: str, interval: str = "1d",
 # 基本面层 — 东财 datacenter
 # ═══════════════════════════════════════════════════════════
 
+@cached(ttl_seconds=TTL_KLINE)
 def _eastmoney_datacenter(
     report_name: str,
     filter_str: str = "",
@@ -363,8 +415,14 @@ def _eastmoney_datacenter(
         if d.get("result") and d["result"].get("data"):
             return d["result"]["data"]
         return []
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
+        HEALTH.record_failure("_eastmoney_datacenter")
         logger.error("东财数据中心查询失败: %s", e)
+        return []
+    except Exception as e:
+        # Unexpected error
+        HEALTH.record_failure("_eastmoney_datacenter")
+        logger.error("东财数据中心查询意外错误: %s", e)
         return []
 
 
@@ -467,6 +525,7 @@ def _yahoo_val(d: dict, key: str):
     return v.get("raw") if isinstance(v, dict) else v
 
 
+@cached(ttl_seconds=TTL_KLINE)
 def yahoo_key_statistics(symbol: str) -> dict[str, Any]:
     """Yahoo 关键财务指标
     
@@ -489,8 +548,14 @@ def yahoo_key_statistics(symbol: str) -> dict[str, Any]:
         )
         r.raise_for_status()
         data = r.json().get("quoteSummary", {}).get("result", [{}])[0]
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
+        HEALTH.record_failure("yahoo_key_statistics")
         logger.error("Yahoo key_statistics 失败 %s: %s", symbol, e)
+        return {"error": str(e)}
+    except Exception as e:
+        # Unexpected error
+        HEALTH.record_failure("yahoo_key_statistics")
+        logger.error("Yahoo key_statistics 意外错误 %s: %s", symbol, e)
         return {"error": str(e)}
 
     fd = data.get("financialData", {})
@@ -527,6 +592,7 @@ def yahoo_key_statistics(symbol: str) -> dict[str, Any]:
     }
 
 
+@cached(ttl_seconds=TTL_KLINE)
 def yahoo_institutional_holders(symbol: str) -> dict[str, Any]:
     """Yahoo 机构持仓
     
@@ -548,8 +614,14 @@ def yahoo_institutional_holders(symbol: str) -> dict[str, Any]:
         )
         r.raise_for_status()
         data = r.json().get("quoteSummary", {}).get("result", [{}])[0]
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
+        HEALTH.record_failure("yahoo_institutional_holders")
         logger.error("Yahoo 机构持仓失败 %s: %s", symbol, e)
+        return {"error": str(e)}
+    except Exception as e:
+        # Unexpected error
+        HEALTH.record_failure("yahoo_institutional_holders")
+        logger.error("Yahoo 机构持仓意外错误 %s: %s", symbol, e)
         return {"error": str(e)}
 
     mhb = data.get("majorHoldersBreakdown", {})
@@ -575,6 +647,7 @@ def yahoo_institutional_holders(symbol: str) -> dict[str, Any]:
 # 资金面层 — 东财 push2his
 # ═══════════════════════════════════════════════════════════
 
+@cached(ttl_seconds=TTL_KLINE)
 def fund_flow_daily(secid: str, limit: int = 100) -> list[dict[str, Any]]:
     """东财 push2his 日级资金流 — 主力/大单/中单/小单净流入
     
@@ -612,8 +685,14 @@ def fund_flow_daily(secid: str, limit: int = 100) -> list[dict[str, Any]]:
                 "main_pct": float(parts[6]) if len(parts) > 6 and parts[6] else 0,
             })
         return result
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
+        HEALTH.record_failure("fund_flow_daily")
         logger.error("东财资金流失败 %s: %s", secid, e)
+        return []
+    except Exception as e:
+        # Unexpected error
+        HEALTH.record_failure("fund_flow_daily")
+        logger.error("东财资金流意外错误 %s: %s", secid, e)
         return []
 
 
@@ -621,6 +700,7 @@ def fund_flow_daily(secid: str, limit: int = 100) -> list[dict[str, Any]]:
 # 期权层 — Yahoo Finance
 # ═══════════════════════════════════════════════════════════
 
+@cached(ttl_seconds=TTL_REALTIME)
 def options_chain(symbol: str, expiration: int = 0) -> dict[str, Any]:
     """Yahoo 期权链 — calls + puts（仅美股）
     
@@ -644,8 +724,14 @@ def options_chain(symbol: str, expiration: int = 0) -> dict[str, Any]:
         )
         r.raise_for_status()
         oc = r.json().get("optionChain", {}).get("result", [{}])[0]
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
+        HEALTH.record_failure("options_chain")
         logger.error("Yahoo 期权链失败 %s: %s", symbol, e)
+        return {"error": str(e)}
+    except Exception as e:
+        # Unexpected error
+        HEALTH.record_failure("options_chain")
+        logger.error("Yahoo 期权链意外错误 %s: %s", symbol, e)
         return {"error": str(e)}
 
     exp_dates = oc.get("expirationDates", [])
@@ -681,6 +767,7 @@ def options_chain(symbol: str, expiration: int = 0) -> dict[str, Any]:
 _cik_cache: Optional[dict] = None
 
 
+@cached(ttl_seconds=TTL_KLINE)
 def ticker_to_cik(ticker: str) -> dict[str, str]:
     """SEC ticker → CIK 映射
     
@@ -699,8 +786,14 @@ def ticker_to_cik(ticker: str) -> dict[str, str]:
             )
             r.raise_for_status()
             _cik_cache = r.json()
-        except Exception as e:
+        except (httpx.HTTPError, httpx.RequestError) as e:
+            HEALTH.record_failure("ticker_to_cik")
             logger.error("SEC CIK 映射下载失败: %s", e)
+            return {"error": str(e)}
+        except Exception as e:
+            # Unexpected error
+            HEALTH.record_failure("ticker_to_cik")
+            logger.error("SEC CIK 映射下载意外错误: %s", e)
             return {"error": str(e)}
 
     ticker_upper = ticker.upper()
@@ -714,6 +807,7 @@ def ticker_to_cik(ticker: str) -> dict[str, str]:
     return {"error": f"未找到 ticker: {ticker}"}
 
 
+@cached(ttl_seconds=TTL_KLINE)
 def sec_filings(cik: str, form_type: str = "") -> dict[str, Any]:
     """SEC EDGAR Filing 列表
     
@@ -729,8 +823,14 @@ def sec_filings(cik: str, form_type: str = "") -> dict[str, Any]:
         r = httpx.get(url, headers=SEC_HEADERS, timeout=HTTP_TIMEOUT)
         r.raise_for_status()
         data = r.json()
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
+        HEALTH.record_failure("sec_filings")
         logger.error("SEC Filing 失败 %s: %s", cik, e)
+        return {"error": str(e)}
+    except Exception as e:
+        # Unexpected error
+        HEALTH.record_failure("sec_filings")
+        logger.error("SEC Filing 意外错误 %s: %s", cik, e)
         return {"error": str(e)}
 
     recent = data.get("filings", {}).get("recent", {})
@@ -765,6 +865,7 @@ def sec_filings(cik: str, form_type: str = "") -> dict[str, Any]:
     }
 
 
+@cached(ttl_seconds=TTL_KLINE)
 def sec_xbrl_facts(cik: str, metrics: Optional[list[str]] = None) -> dict[str, Any]:
     """SEC EDGAR XBRL 结构化财务数据
     
@@ -780,8 +881,14 @@ def sec_xbrl_facts(cik: str, metrics: Optional[list[str]] = None) -> dict[str, A
         r = httpx.get(url, headers=SEC_HEADERS, timeout=HTTP_TIMEOUT)
         r.raise_for_status()
         facts = r.json()
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
+        HEALTH.record_failure("sec_xbrl_facts")
         logger.error("SEC XBRL 失败 %s: %s", cik, e)
+        return {"error": str(e)}
+    except Exception as e:
+        # Unexpected error
+        HEALTH.record_failure("sec_xbrl_facts")
+        logger.error("SEC XBRL 意外错误 %s: %s", cik, e)
         return {"error": str(e)}
 
     us_gaap = facts.get("facts", {}).get("us-gaap", {})
@@ -827,6 +934,7 @@ def sec_xbrl_facts(cik: str, metrics: Optional[list[str]] = None) -> dict[str, A
 # 工具层 — 搜索 / 新闻 / 市场列表
 # ═══════════════════════════════════════════════════════════
 
+@cached(ttl_seconds=TTL_REALTIME)
 def stock_search(keyword: str, count: int = 10) -> list[dict[str, Any]]:
     """东财股票搜索 — 支持中英文
     
@@ -849,8 +957,14 @@ def stock_search(keyword: str, count: int = 10) -> list[dict[str, Any]]:
     try:
         r = httpx.get(url, params=params, timeout=HTTP_TIMEOUT)
         suggestions = r.json().get("QuotationCodeTable", {}).get("Data", [])
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
+        HEALTH.record_failure("stock_search")
         logger.error("东财搜索失败: %s", e)
+        return []
+    except Exception as e:
+        # Unexpected error
+        HEALTH.record_failure("stock_search")
+        logger.error("东财搜索意外错误: %s", e)
         return []
 
     market_map = {"105": "NASDAQ", "106": "NYSE", "107": "US_OTHER", "116": "HK"}
@@ -868,6 +982,7 @@ def stock_search(keyword: str, count: int = 10) -> list[dict[str, Any]]:
     return result
 
 
+@cached(ttl_seconds=TTL_REALTIME)
 def stock_news_yahoo(keyword: str, count: int = 10) -> list[dict[str, Any]]:
     """Yahoo Finance 新闻搜索
     
@@ -888,8 +1003,14 @@ def stock_news_yahoo(keyword: str, count: int = 10) -> list[dict[str, Any]]:
         })
         r.raise_for_status()
         news = r.json().get("news", [])
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
+        HEALTH.record_failure("stock_news_yahoo")
         logger.error("Yahoo 新闻失败: %s", e)
+        return []
+    except Exception as e:
+        # Unexpected error
+        HEALTH.record_failure("stock_news_yahoo")
+        logger.error("Yahoo 新闻意外错误: %s", e)
         return []
 
     return [{
@@ -900,6 +1021,7 @@ def stock_news_yahoo(keyword: str, count: int = 10) -> list[dict[str, Any]]:
     } for n in news]
 
 
+@cached(ttl_seconds=TTL_REALTIME)
 def market_stock_list(market: str = "us_nasdaq",
                       sort_field: str = "f3",
                       sort_desc: bool = True,
@@ -933,8 +1055,14 @@ def market_stock_list(market: str = "us_nasdaq",
     try:
         r = httpx.get(url, params=params, timeout=HTTP_TIMEOUT)
         data = r.json().get("data", {})
-    except Exception as e:
+    except (httpx.HTTPError, httpx.RequestError) as e:
+        HEALTH.record_failure("market_stock_list")
         logger.error("东财市场列表失败: %s", e)
+        return {"total": 0, "stocks": []}
+    except Exception as e:
+        # Unexpected error
+        HEALTH.record_failure("market_stock_list")
+        logger.error("东财市场列表意外错误: %s", e)
         return {"total": 0, "stocks": []}
 
     total = data.get("total", 0)

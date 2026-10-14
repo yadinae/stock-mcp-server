@@ -2,10 +2,11 @@
 """Sentiment tool handlers — 情绪存储、趋势查询、异常检测。"""
 from __future__ import annotations
 
+import httpx
+
 import json
 
 from core.sentiment import (
-import httpx
     store_daily_sentiment,
     get_daily_sentiment,
     get_sentiment_trend,

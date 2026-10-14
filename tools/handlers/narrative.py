@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import json
 
-from tools.narrative import (
 import httpx
+
+from tools.narrative import (
     normalize_concepts,
     rank_narratives,
     enhance_stock_boards,

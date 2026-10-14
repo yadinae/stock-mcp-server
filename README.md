@@ -295,12 +295,23 @@ git clone https://github.com/yadinae/stock-mcp-server.git
 cd stock-mcp-server
 
 # 安装依赖
-pip install "mcp[cli]" httpx yfinance numpy pandas
+# 注意：必须锁 mcp<2 —— mcp 2.x 已把 FastMCP 改名为 MCPServer，
+# 本项目的 `from mcp.server.fastmcp import FastMCP` 在 2.x 下直接启动失败
+pip install "mcp<2" "pandas==3.0.6" "httpx==0.28.1" "numpy==2.4.6" "baostock==0.9.4" uvicorn yfinance pyyaml
 
 # 可选依赖
 pip install mootdx      # 通达信 TCP 数据源
 pip install akshare     # 东财数据
 ```
+
+> **依赖提示**：早期 `requirements.txt` 缺少 `yfinance` 和 `pyyaml`（data_sources/yahoo.py 与配置模块实际需要），
+> 按上面命令安装即可；若用 requirements.txt 安装报 `No module named 'yfinance'`，属同一问题。
+
+### 部署已知坑（2026-10-14 实测修复）
+
+1. **mcp SDK 版本**：`pip install mcp` 默认装 2.x，启动即报 `ModuleNotFoundError: No module named 'mcp.server.fastmcp'`。锁 `mcp<2` 解决。
+2. **handler 文件语法错误**：`tools/handlers/{narrative,quote,sentiment}.py` 中 `import httpx` 被误插到 `from tools... import (` 括号内部，导致 `SyntaxError: invalid syntax`。已修正为括号外的独立 import。
+3. **http 模式必须设置 `STOCK_MCP_API_KEY`**：未设置时服务拒绝启动（设计如此，防零认证暴露）。
 
 ### 启动服务
 

@@ -464,8 +464,54 @@ def format_candidates_json(result: PipelineResult) -> str:
     return json.dumps(candidates, ensure_ascii=False, indent=2)
 
 
+def enrich_with_tencent(result) -> None:
+    """候选装饰：腾讯行情（国内源直连）补 name/现价/涨跌幅。
+
+    背景：数据源降级到 baostock 缓存时，name 缺失（回填只存 code）、
+    price/change_pct 是缓存快照的陈旧值。漏斗打分仍用缓存指标（合理，
+    技术指标需要历史序列），但**展示层**用当日实时行情纠正。
+    """
+    import urllib.request
+    # code 可能是裸 6 位（baostock 缓存 "300274"）或带前缀（"sh.600000"）
+    def to_tencent(code: str) -> str:
+        c = code.replace(".", "").lower()
+        if len(c) == 6 and c[0] in "03":      # 0/3 开头 → 深市
+            return "sz" + c
+        if len(c) == 6 and c[0] in "569":     # 5(基金)/6/9 开头 → 沪市
+            return "sh" + c
+        return c
+    codes = [s.get("code", "") for s in result.candidates if s.get("code")]
+    if not codes:
+        return
+    query = ",".join(to_tencent(c) for c in codes)
+    try:
+        url = f"http://qt.gtimg.cn/q={query}"
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        body = urllib.request.urlopen(req, timeout=10).read().decode("gbk", "ignore")
+    except Exception as e:
+        logging.getLogger("run_funnel").warning(f"腾讯行情装饰失败（保留缓存值）: {e}")
+        return
+    # 每行: v_sz300274="51~阳光电源~300274~76.10~..."
+    for s in result.candidates:
+        code = to_tencent(s.get("code") or "")
+        for line in body.split(";"):
+            if f"_{code}=" not in line or '="' not in line:
+                continue
+            fields = line.split('="', 1)[1].rstrip('"').split("~")
+            if len(fields) > 32:
+                s["name"] = fields[1] or s.get("name")
+                try:
+                    s["price"] = float(fields[3])
+                    s["change_pct"] = float(fields[32])
+                except (ValueError, IndexError):
+                    pass
+            break
+
+
 if __name__ == "__main__":
     result = run_funnel()
+    enrich_with_tencent(result)
+
 
     if result.candidates:
         print(f"\n{'='*60}")

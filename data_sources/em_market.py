@@ -427,21 +427,27 @@ def get_limitup_tiers() -> dict:
         "changePct": r.get("CHANGE_RATE", 0) or 0,
         "turnoverRate": r.get("TURNOVERRATE", 0) or 0,
         "totalScore": r.get("TOTALSCORE", 0) or 0,
-        "consecutiveDays": 0, "isBoard": True,
+        "consecutiveDays": None, "isBoard": True,  # None=未核实（2026-11-05 修复）
     } for r in rows]
 
     # 2. 前 30 只做连板分析（太多会超时）
+    # 2026-11-05 修复（盘前早报 P0 误发拦截事故）：此前 remaining 硬编码 consecutiveDays=1，
+    # 导致 30 名外的连板股全被算成首板、二板/多板永远为 0，市场统计失真（推理审计 P0 拒发的根因）。
+    # 改为 None=未核实：market_summary 单列 unverified，分类时不进首板。
     detailed, remaining = stocks[:30], stocks[30:]
     for s in detailed:
         s["consecutiveDays"], s["isBoard"] = _check_consecutive(s["code"], s["changePct"])
         time.sleep(0.05)  # 腾讯K线轻限流
     for s in remaining:
-        s["consecutiveDays"] = 1
+        s["consecutiveDays"] = None  # 未核实，不再伪造首板
 
-    # 3. 分类
-    tiers = {"first_boards": [], "second_boards": [], "multiple_boards": [], "broken_boards": []}
+    # 3. 分类（consecutiveDays=None 的未核实股单独归档，不冒充首板）
+    tiers = {"first_boards": [], "second_boards": [], "multiple_boards": [],
+             "broken_boards": [], "unverified": []}
     for s in stocks:
-        if not s["isBoard"]:
+        if s["consecutiveDays"] is None:
+            tiers["unverified"].append(s)
+        elif not s["isBoard"]:
             tiers["broken_boards"].append(s)
         elif s["consecutiveDays"] >= 3:
             tiers["multiple_boards"].append(s)
@@ -450,20 +456,24 @@ def get_limitup_tiers() -> dict:
         else:
             tiers["first_boards"].append(s)
 
-    # 4. 市场统计
+    # 4. 市场统计（verified 只统计已核实连板结构的股票）
+    verified = [s for s in stocks if s["consecutiveDays"] is not None]
     board_count = len(tiers["first_boards"]) + len(tiers["second_boards"]) + len(tiers["multiple_boards"])
-    total = board_count + len(tiers["broken_boards"])
+    total = len(stocks)
     ratio = (board_count / total * 100) if total > 0 else 0
-    avg_days = sum(s["consecutiveDays"] for s in stocks) / len(stocks) if stocks else 0
+    avg_days = sum(s["consecutiveDays"] for s in verified) / len(verified) if verified else 0
     market_summary = {
-        "total_limit_up": len(stocks),
+        "total_limit_up": total,
         "first_board": len(tiers["first_boards"]),
         "second_board": len(tiers["second_boards"]),
         "multiple_board": len(tiers["multiple_boards"]),
         "broken_board": len(tiers["broken_boards"]),
+        "unverified": len(tiers["unverified"]),
+        "verified_sample": len(verified),
+        "note": "连板结构仅核实涨幅前30只，其余为未核实（unverified），勿解读为首板" if tiers["unverified"] else "",
         "board_success_rate": f"{ratio:.1f}%",
         "avg_consecutive": f"{avg_days:.2f}",
-        "max_consecutive": max(s["consecutiveDays"] for s in stocks) if stocks else 0,
+        "max_consecutive": max((s["consecutiveDays"] for s in verified), default=0),
     }
 
     def fmt(s):

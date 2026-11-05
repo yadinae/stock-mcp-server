@@ -14,8 +14,8 @@ import httpx
 
 logger = logging.getLogger("stock-mcp.llm_agnes")
 
-_PROVIDER_CONFIG = "/home/admin/.hermes/scripts/llm_provider.json"
-_PROVIDER_CONFIG_FALLBACK = "/home/admin/.hermes/scripts/xueqiu_articles/llm_config.json"
+_PROVIDER_CONFIG = "/home/agentuser/.hermes/scripts/llm_provider.json"
+_PROVIDER_CONFIG_FALLBACK = "/home/agentuser/.hermes/scripts/xueqiu_articles/llm_config.json"
 
 
 def _load_provider() -> dict:

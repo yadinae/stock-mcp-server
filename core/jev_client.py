@@ -23,7 +23,7 @@ import httpx
 
 logger = logging.getLogger("stock-mcp.jev")
 
-_SECRETS_PATH = "/home/admin/.hermes/scripts/secrets.json"
+_SECRETS_PATH = "/home/agentuser/.hermes/scripts/secrets.json"  # 2026-10-14: 旧机 /home/admin → 本机路径
 _JEV_ENDPOINT = "https://openrouter.ai/api/alpha/decisions"
 _JEV_MODEL = "typesafe/jev-1.13"
 
